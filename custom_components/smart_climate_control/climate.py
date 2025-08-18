@@ -154,10 +154,13 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
                 self.coordinator.override_mode = False
                 
             await self.coordinator.async_update()
-    
-        async def async_turn_on(self) -> None:
-            """Turn the entity on."""
-            # Use the last active mode, default to HEAT
-            last_mode = getattr(self, '_attr_last_active_mode', HVACMode.HEAT)
-            await self.async_set_hvac_mode(last_mode)
-    
+
+    async def async_turn_on(self) -> None:
+        """Turn the entity on."""
+        # Use the last active mode, default to HEAT
+        last_mode = getattr(self, '_attr_last_active_mode', HVACMode.HEAT)
+        await self.async_set_hvac_mode(last_mode)
+
+    async def async_turn_off(self) -> None:
+        """Turn the entity off."""
+        await self.async_set_hvac_mode(HVACMode.OFF)

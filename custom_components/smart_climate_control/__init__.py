@@ -298,8 +298,6 @@ class SmartClimateCoordinator:
             # In deadband - maintain current state
             return self.current_action, self.target_temperature if self.current_action == "on" else None, "In deadband"
     
-# Updated section for __init__.py - replace the _control_heat_pump method with this:
-
     async def _control_heat_pump(self, action: str, temperature: Optional[float]) -> None:
         """Control the heat pump entity."""
         heat_pump = self.config.get(CONF_HEAT_PUMP)
@@ -418,5 +416,4 @@ class SmartClimateCoordinator:
         })
         
         # Update
-
         await self.async_update()
