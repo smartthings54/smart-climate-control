@@ -298,13 +298,78 @@ class SmartClimateCoordinator:
             # In deadband - maintain current state
             return self.current_action, self.target_temperature if self.current_action == "on" else None, "In deadband"
     
+# Updated section for __init__.py - replace the _control_heat_pump method with this:
+
     async def _control_heat_pump(self, action: str, temperature: Optional[float]) -> None:
         """Control the heat pump entity."""
         heat_pump = self.config.get(CONF_HEAT_PUMP)
         if not heat_pump:
             return
         
+        # Get current state of heat pump
+        heat_pump_state = self.hass.states.get(heat_pump)
+        if not heat_pump_state:
+            return
+            
+        current_hvac_mode = heat_pump_state.state
+        current_temp = heat_pump_state.attributes.get('temperature')
+        
         if action == "on" and temperature is not None:
+            # Only send command if something needs to change
+            if current_hvac_mode != "heat" or current_temp != temperature:
+                _LOGGER.debug(f"Changing heat pump: mode={current_hvac_mode}->heat, temp={current_temp}->{temperature}")
+                await self.hass.services.async_call(
+                    "climate",
+                    "set_temperature",
+                    {
+                        "entity_id": heat_pump,
+                        "temperature": temperature,
+                        "hvac_mode": "heat",
+                    },
+                    blocking=False,
+                )
+            else:
+                _LOGGER.debug(f"Heat pump already at correct settings: heat mode, {temperature}°C")
+                
+        elif action == "off":
+            # Only turn off if it's currently on
+            if current_hvac_mode != "off":
+                _LOGGER.debug(f"Turning off heat pump (was {current_hvac_mode})")
+                await self.hass.services.async_call(
+                    "climate",
+                    SERVICE_TURN_OFF,
+                    {"entity_id": heat_pump},
+                    blocking=False,
+                )
+            else:
+                _LOGGER.debug("Heat pump already off")
+
+# Alternative simpler fix - add state tracking to the coordinator class
+# Add these lines to the __init__ method of SmartClimateCoordinator class:
+
+        # Add to existing state variables in __init__
+        self.last_sent_action = None
+        self.last_sent_temperature = None
+
+# Then modify _control_heat_pump to check before sending:
+
+    async def _control_heat_pump(self, action: str, temperature: Optional[float]) -> None:
+        """Control the heat pump entity."""
+        heat_pump = self.config.get(CONF_HEAT_PUMP)
+        if not heat_pump:
+            return
+        
+        # Check if we need to send a command
+        if action == self.last_sent_action and temperature == self.last_sent_temperature:
+            _LOGGER.debug(f"No change needed: {action} at {temperature}°C")
+            return
+            
+        # Update last sent values
+        self.last_sent_action = action
+        self.last_sent_temperature = temperature
+        
+        if action == "on" and temperature is not None:
+            _LOGGER.info(f"Setting heat pump to heat mode at {temperature}°C")
             await self.hass.services.async_call(
                 "climate",
                 "set_temperature",
@@ -316,6 +381,7 @@ class SmartClimateCoordinator:
                 blocking=False,
             )
         elif action == "off":
+            _LOGGER.info(f"Turning off heat pump")
             await self.hass.services.async_call(
                 "climate",
                 SERVICE_TURN_OFF,
@@ -352,4 +418,5 @@ class SmartClimateCoordinator:
         })
         
         # Update
+
         await self.async_update()
