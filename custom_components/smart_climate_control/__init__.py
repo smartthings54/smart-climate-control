@@ -161,6 +161,9 @@ class SmartClimateCoordinator:
             # Check sleep status
             await self._check_sleep_status()
             
+            # Check schedule status (ADD THIS LINE)
+            await self._check_schedule_status()
+            
             # Determine target temperature
             base_temp = self._determine_base_temperature()
             
@@ -232,7 +235,7 @@ class SmartClimateCoordinator:
             self.door_open_time = None
         
         return False
-    
+ 
     async def _check_sleep_status(self) -> None:
         """Check if sleep mode should be active."""
         bed_sensors = self.config.get(CONF_BED_SENSORS, [])
@@ -243,6 +246,28 @@ class SmartClimateCoordinator:
             if bed1 and bed2:
                 self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
     
+    async def _check_schedule_status(self) -> None:
+        """Check schedule entity for current mode."""
+        schedule_entity = self.config.get(CONF_SCHEDULE_ENTITY)
+        if not schedule_entity:
+            self.schedule_mode = "comfort"
+            return
+        
+        state = self.hass.states.get(schedule_entity)
+        if not state:
+            self.schedule_mode = "comfort"
+            return
+        
+        # For HA schedule entities, state is "on" when in a scheduled period
+        if state.state == "on":
+            # During scheduled time - use comfort mode
+            self.schedule_mode = "comfort"
+        else:
+            # Outside scheduled time - use eco mode
+            self.schedule_mode = "eco"
+        
+        _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
+ 
     def _determine_base_temperature(self) -> float:
         """Determine the base target temperature."""
         if self.force_eco_mode or self.sleep_mode_active:
@@ -270,6 +295,10 @@ class SmartClimateCoordinator:
         
         if self.override_mode:
             return "on", base_temp, "Manual override"
+        
+        # Check if schedule is off (ADD THESE TWO LINES)
+        if self.schedule_mode == "off" and not self.force_eco_mode:
+            return "off", None, "Schedule off"
         
         # Check house average temperature limit
         if avg_house_temp is not None:

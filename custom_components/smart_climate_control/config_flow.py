@@ -88,6 +88,9 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_DOOR_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor", device_class="door")
                 ),
+                vol.Optional(CONF_SCHEDULE_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="schedule")
+                ),
                 vol.Optional(CONF_PRESENCE_TRACKER): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain=["device_tracker", "person", "zone"])
                 ),

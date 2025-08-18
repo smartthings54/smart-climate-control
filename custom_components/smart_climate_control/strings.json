@@ -12,6 +12,7 @@
           "average_sensor": "Average House Temperature Sensor (optional)",
           "door_sensor": "Door Sensor (optional)",
           "presence_tracker": "Presence Tracker (optional)"
+										"schedule_entity": "Heating Schedule (optional)"
         }
       },
       "options": {
