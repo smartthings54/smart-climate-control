@@ -1,8 +1,8 @@
 # Smart Climate Control for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/yourusername/smart-climate-control.svg)](https://github.com/yourusername/smart-climate-control/releases)
-[![License](https://img.shields.io/github/license/yourusername/smart-climate-control.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/smartthings54/smart-climate-control.svg)](https://github.com/smartthings54/smart-climate-control/releases)
+[![License](https://img.shields.io/github/license/smartthings54/smart-climate-control.svg)](LICENSE)
 
 A sophisticated climate control system for Home Assistant that provides intelligent heating management with features like weather compensation, sleep detection, occupancy tracking, and energy optimization.
 
@@ -45,7 +45,7 @@ A sophisticated climate control system for Home Assistant that provides intellig
 2. Click on "Integrations"
 3. Click the three dots menu in the top right
 4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/yourusername/smart-climate-control`
+5. Add this repository URL: `https://github.com/smartthings54/smart-climate-control`
 6. Select "Integration" as the category
 7. Click "Add"
 8. Search for "Smart Climate Control"
@@ -238,8 +238,8 @@ The system operates on a 60-second cycle:
 
 ## 📝 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/smart-climate-control/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/smart-climate-control/discussions)
+- **Issues**: [GitHub Issues](https://github.com/smartthings54/smart-climate-control/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/smartthings54/smart-climate-control/discussions)
 - **Updates**: Watch the repository for updates
 
 ## 📄 License
