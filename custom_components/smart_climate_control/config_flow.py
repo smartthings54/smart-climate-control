@@ -169,13 +169,13 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return SmartClimateOptionsFlow(config_entry)
 
-
 class SmartClimateOptionsFlow(config_entries.OptionsFlow):
     """Handle options for Smart Climate Control."""
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        # Don't store config_entry, access it via self.config_entry property instead
+        pass  # or just remove the __init__ entirely
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None):
         """Manage the options."""
