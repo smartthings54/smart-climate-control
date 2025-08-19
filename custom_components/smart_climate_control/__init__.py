@@ -263,15 +263,30 @@ class SmartClimateCoordinator:
             self.schedule_mode = "comfort"
             return
         
-        # For HA schedule entities, state is "on" when in a scheduled period
-        if state.state == "on":
-            # During scheduled time - use comfort mode
-            self.schedule_mode = "comfort"
+        # Check if schedule has a mode attribute (like yours does!)
+        if "mode" in state.attributes:
+            # Use the mode from the schedule entity
+            mode = state.attributes.get("mode", "comfort")
+            
+            # Validate the mode
+            valid_modes = ["comfort", "eco", "boost", "off"]
+            if mode.lower() in valid_modes:
+                self.schedule_mode = mode.lower()
+            else:
+                self.schedule_mode = "comfort"
+                
+            _LOGGER.debug(f"Schedule {schedule_entity} using mode from attribute: {self.schedule_mode}")
         else:
-            # Outside scheduled time - use eco mode
-            self.schedule_mode = "eco"
+            # Fallback to old logic if no mode attribute
+            if state.state == "on":
+                self.schedule_mode = "comfort"
+            else:
+                self.schedule_mode = "eco"
+            
+            _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
         
-        _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
+        # Log the full state for debugging
+        _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
  
     def _determine_base_temperature(self) -> float:
         """Determine the base target temperature."""
@@ -415,3 +430,4 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
