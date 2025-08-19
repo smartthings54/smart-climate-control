@@ -127,6 +127,8 @@ class SmartClimateCoordinator:
         self.door_open_time = None
         self.sleep_mode_active = False
         self.debug_text = "System initializing..."
+        self.last_sent_action = None
+        self.last_sent_temperature = None
         
         # Temperature settings
         self.comfort_temp = self.config.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
