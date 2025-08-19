@@ -128,6 +128,10 @@ class SmartClimateCoordinator:
         self.sleep_mode_active = False
         self.debug_text = "System initializing..."
         
+        # Tracking variables for heat pump control
+        self.last_sent_action = None
+        self.last_sent_temperature = None
+        
         # Temperature settings
         self.comfort_temp = self.config.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
         self.eco_temp = self.config.get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
@@ -162,7 +166,7 @@ class SmartClimateCoordinator:
             # Check sleep status
             await self._check_sleep_status()
             
-            # Check schedule status (ADD THIS LINE)
+            # Check schedule status
             await self._check_schedule_status()
             
             # Determine target temperature
@@ -297,7 +301,7 @@ class SmartClimateCoordinator:
         if self.override_mode:
             return "on", base_temp, "Manual override"
         
-        # Check if schedule is off (ADD THESE TWO LINES)
+        # Check if schedule is off
         if self.schedule_mode == "off" and not self.force_eco_mode:
             return "off", None, "Schedule off"
         
@@ -334,6 +338,11 @@ class SmartClimateCoordinator:
         if not heat_pump:
             return
         
+        # Check if we need to send a command (prevents beeping)
+        if action == self.last_sent_action and temperature == self.last_sent_temperature:
+            _LOGGER.debug(f"No change needed: {action} at {temperature}°C")
+            return
+            
         # Get current state of heat pump
         heat_pump_state = self.hass.states.get(heat_pump)
         if not heat_pump_state:
@@ -341,6 +350,10 @@ class SmartClimateCoordinator:
             
         current_hvac_mode = heat_pump_state.state
         current_temp = heat_pump_state.attributes.get('temperature')
+        
+        # Update last sent values
+        self.last_sent_action = action
+        self.last_sent_temperature = temperature
         
         if action == "on" and temperature is not None:
             # Only send command if something needs to change
@@ -371,51 +384,6 @@ class SmartClimateCoordinator:
                 )
             else:
                 _LOGGER.debug("Heat pump already off")
-
-# Alternative simpler fix - add state tracking to the coordinator class
-# Add these lines to the __init__ method of SmartClimateCoordinator class:
-
-        # Add to existing state variables in __init__
-        self.last_sent_action = None
-        self.last_sent_temperature = None
-
-# Then modify _control_heat_pump to check before sending:
-
-    async def _control_heat_pump(self, action: str, temperature: Optional[float]) -> None:
-        """Control the heat pump entity."""
-        heat_pump = self.config.get(CONF_HEAT_PUMP)
-        if not heat_pump:
-            return
-        
-        # Check if we need to send a command
-        if action == self.last_sent_action and temperature == self.last_sent_temperature:
-            _LOGGER.debug(f"No change needed: {action} at {temperature}°C")
-            return
-            
-        # Update last sent values
-        self.last_sent_action = action
-        self.last_sent_temperature = temperature
-        
-        if action == "on" and temperature is not None:
-            _LOGGER.info(f"Setting heat pump to heat mode at {temperature}°C")
-            await self.hass.services.async_call(
-                "climate",
-                "set_temperature",
-                {
-                    "entity_id": heat_pump,
-                    "temperature": temperature,
-                    "hvac_mode": "heat",
-                },
-                blocking=False,
-            )
-        elif action == "off":
-            _LOGGER.info(f"Turning off heat pump")
-            await self.hass.services.async_call(
-                "climate",
-                SERVICE_TURN_OFF,
-                {"entity_id": heat_pump},
-                blocking=False,
-            )
     
     def _format_debug_text(
         self, action: str, temperature: Optional[float],
