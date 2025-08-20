@@ -29,10 +29,10 @@
       },
       "beds": {
         "title": "Sleep Detection (Optional)",
-        "description": "Configure bed sensors for automatic eco mode during sleep",
+        "description": "Select bed sensors or input_booleans for automatic eco mode during sleep",
         "data": {
-          "bed_sensor_1": "First Bed Sensor",
-          "bed_sensor_2": "Second Bed Sensor"
+          "bed_sensor_1": "First Bed Sensor/Boolean",
+          "bed_sensor_2": "Second Bed Sensor/Boolean"
         }
       }
     },
