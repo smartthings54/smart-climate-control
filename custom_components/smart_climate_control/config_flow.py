@@ -150,15 +150,19 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 title=self.data[CONF_NAME],
                 data=self.data,
             )
-
+    
         return self.async_show_form(
             step_id="beds",
             data_schema=vol.Schema({
                 vol.Optional("bed_sensor_1"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor")
+                    selector.EntitySelectorConfig(
+                        domain=["binary_sensor", "input_boolean"]  # ← CHANGED
+                    )
                 ),
                 vol.Optional("bed_sensor_2"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor")
+                    selector.EntitySelectorConfig(
+                        domain=["binary_sensor", "input_boolean"]  # ← CHANGED
+                    )
                 ),
             }),
         )
