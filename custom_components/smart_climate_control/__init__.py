@@ -311,7 +311,7 @@ class SmartClimateCoordinator:
                 _LOGGER.debug(f"Unknown entity type {entity_domain}, checking state")
                 return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
         
-        def _determine_base_temperature(self) -> float:  # ← This method already exists
+        def _determine_base_temperature(self) -> float:
             """Determine the base target temperature."""   
     
     async def _check_schedule_status(self) -> None:
@@ -517,6 +517,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
