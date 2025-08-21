@@ -253,9 +253,8 @@ class SmartClimateCoordinator:
 
     async def _check_schedule_status(self) -> None:
             """Check schedule entity for current mode."""
-            # ... existing schedule code ...
             
-        async def _check_presence_status(self) -> bool:  # ← ADD THIS NEW METHOD HERE
+    async def _check_presence_status(self) -> bool:
             """Check if someone is home based on presence tracker."""
             presence_tracker = self.config.get(CONF_PRESENCE_TRACKER)
             if not presence_tracker:
@@ -313,8 +312,7 @@ class SmartClimateCoordinator:
                 return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
         
         def _determine_base_temperature(self) -> float:  # ← This method already exists
-            """Determine the base target temperature."""
-            # ... existing code ...    
+            """Determine the base target temperature."""   
     
     async def _check_schedule_status(self) -> None:
         """Check schedule entity for current mode."""
@@ -519,6 +517,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
