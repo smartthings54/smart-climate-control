@@ -288,17 +288,29 @@ class SmartClimateCoordinator:
         # Log the full state for debugging
         _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
  
+    # In __init__.py, update the _determine_base_temperature method with debug logging:    
     def _determine_base_temperature(self) -> float:
         """Determine the base target temperature."""
+        # Add debug logging
+        _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
+        
         if self.force_eco_mode or self.sleep_mode_active:
+            _LOGGER.debug(f"Using eco temp due to force_eco or sleep: {self.eco_temp}°C")
             return self.eco_temp
         elif self.override_mode:
+            _LOGGER.debug(f"Using comfort temp due to override: {self.comfort_temp}°C")
             return self.comfort_temp
         elif self.schedule_mode == "eco":
+            _LOGGER.debug(f"Using eco temp due to schedule: {self.eco_temp}°C")
             return self.eco_temp
         elif self.schedule_mode == "boost":
+            _LOGGER.debug(f"Using boost temp due to schedule: {self.boost_temp}°C")
             return self.boost_temp
+        elif self.schedule_mode == "off":
+            _LOGGER.debug(f"Schedule is off but returning comfort temp: {self.comfort_temp}°C")
+            return self.comfort_temp
         else:
+            _LOGGER.debug(f"Default to comfort temp: {self.comfort_temp}°C")
             return self.comfort_temp
     
     async def _calculate_control(
@@ -411,9 +423,16 @@ class SmartClimateCoordinator:
         
         if action == "off":
             return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
+
         else:
-            mode = "Eco" if self.force_eco_mode or self.sleep_mode_active else "Comfort"
-            return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
+            # Correctly determine the mode for display
+            if self.force_eco_mode or self.sleep_mode_active or self.schedule_mode == "eco":
+                mode = "Eco"
+            elif self.schedule_mode == "boost":
+                mode = "Boost"
+            else:
+                mode = "Comfort"
+            return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"            
     
     async def reset_temperatures(self) -> None:
         """Reset temperatures to defaults."""
@@ -430,4 +449,5 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
