@@ -350,25 +350,7 @@ class SmartClimateCoordinator:
         """Determine the base target temperature."""
         # Add debug logging
         _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
-            
-            if self.force_eco_mode or self.sleep_mode_active:
-                _LOGGER.debug(f"Using eco temp due to force_eco or sleep: {self.eco_temp}°C")
-                return self.eco_temp
-            elif self.override_mode:
-                _LOGGER.debug(f"Using comfort temp due to override: {self.comfort_temp}°C")
-                return self.comfort_temp
-            elif self.schedule_mode == "eco":
-                _LOGGER.debug(f"Using eco temp due to schedule: {self.eco_temp}°C")
-                return self.eco_temp
-            elif self.schedule_mode == "boost":
-                _LOGGER.debug(f"Using boost temp due to schedule: {self.boost_temp}°C")
-                return self.boost_temp
-            elif self.schedule_mode == "off":
-                _LOGGER.debug(f"Schedule is off but returning comfort temp: {self.comfort_temp}°C")
-                return self.comfort_temp
-            else:
-                _LOGGER.debug(f"Default to comfort temp: {self.comfort_temp}°C")
-                return self.comfort_temp        
+        
         if self.force_eco_mode or self.sleep_mode_active:
             _LOGGER.debug(f"Using eco temp due to force_eco or sleep: {self.eco_temp}°C")
             return self.eco_temp
@@ -529,6 +511,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
