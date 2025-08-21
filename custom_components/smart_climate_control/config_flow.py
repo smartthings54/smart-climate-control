@@ -93,8 +93,10 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.EntitySelectorConfig(domain="schedule")
                 ),
                 vol.Optional(CONF_PRESENCE_TRACKER): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["device_tracker", "person", "zone"])
-                ),
+                    selector.EntitySelectorConfig(
+                        domain=["device_tracker", "person", "zone", "sensor", "input_boolean", "group"]
+                    )
+                ),                
             }),
             errors=errors,
         )
@@ -245,3 +247,4 @@ class SmartClimateOptionsFlow(config_entries.OptionsFlow):
                 ),
             }),
         )
+
