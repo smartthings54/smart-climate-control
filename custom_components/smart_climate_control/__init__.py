@@ -36,6 +36,7 @@ from .const import (
     CONF_WEATHER_COMP_FACTOR,
     CONF_MAX_COMP_TEMP,
     CONF_MIN_COMP_TEMP,
+    CONF_PRESENCE_TRACKER,
     DEFAULT_COMFORT_TEMP,
     DEFAULT_ECO_TEMP,
     DEFAULT_BOOST_TEMP,
@@ -242,19 +243,53 @@ class SmartClimateCoordinator:
         return False
  
     async def _check_sleep_status(self) -> None:
-        """Check if sleep mode should be active."""
-        bed_sensors = self.config.get(CONF_BED_SENSORS, [])
-        if len(bed_sensors) >= 2:
-            bed1 = self.hass.states.get(bed_sensors[0])
-            bed2 = self.hass.states.get(bed_sensors[1])
-            
-            if bed1 and bed2:
-                self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
-
-    async def _check_schedule_status(self) -> None:
+            """Check if sleep mode should be active."""
+            bed_sensors = self.config.get(CONF_BED_SENSORS, [])
+            if len(bed_sensors) >= 2:
+                bed1 = self.hass.states.get(bed_sensors[0])
+                bed2 = self.hass.states.get(bed_sensors[1])
+                
+                if bed1 and bed2:
+                    self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
+    
+        async def _check_schedule_status(self) -> None:
             """Check schedule entity for current mode."""
+            schedule_entity = self.config.get(CONF_SCHEDULE_ENTITY)
+            if not schedule_entity:
+                self.schedule_mode = "comfort"
+                return
             
-    async def _check_presence_status(self) -> bool:
+            state = self.hass.states.get(schedule_entity)
+            if not state:
+                self.schedule_mode = "comfort"
+                return
+            
+            # Check if schedule has a mode attribute (like yours does!)
+            if "mode" in state.attributes:
+                # Use the mode from the schedule entity
+                mode = state.attributes.get("mode", "comfort")
+                
+                # Validate the mode
+                valid_modes = ["comfort", "eco", "boost", "off"]
+                if mode.lower() in valid_modes:
+                    self.schedule_mode = mode.lower()
+                else:
+                    self.schedule_mode = "comfort"
+                    
+                _LOGGER.debug(f"Schedule {schedule_entity} using mode from attribute: {self.schedule_mode}")
+            else:
+                # Fallback to old logic if no mode attribute
+                if state.state == "on":
+                    self.schedule_mode = "comfort"
+                else:
+                    self.schedule_mode = "eco"
+                
+                _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
+            
+            # Log the full state for debugging
+            _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
+                
+        async def _check_presence_status(self) -> bool:
             """Check if someone is home based on presence tracker."""
             presence_tracker = self.config.get(CONF_PRESENCE_TRACKER)
             if not presence_tracker:
@@ -310,53 +345,30 @@ class SmartClimateCoordinator:
                 # Unknown entity type
                 _LOGGER.debug(f"Unknown entity type {entity_domain}, checking state")
                 return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
-        
+     
         def _determine_base_temperature(self) -> float:
-            """Determine the base target temperature."""   
-    
-    async def _check_schedule_status(self) -> None:
-        """Check schedule entity for current mode."""
-        schedule_entity = self.config.get(CONF_SCHEDULE_ENTITY)
-        if not schedule_entity:
-            self.schedule_mode = "comfort"
-            return
-        
-        state = self.hass.states.get(schedule_entity)
-        if not state:
-            self.schedule_mode = "comfort"
-            return
-        
-        # Check if schedule has a mode attribute (like yours does!)
-        if "mode" in state.attributes:
-            # Use the mode from the schedule entity
-            mode = state.attributes.get("mode", "comfort")
+            """Determine the base target temperature."""
+            # Add debug logging
+            _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
             
-            # Validate the mode
-            valid_modes = ["comfort", "eco", "boost", "off"]
-            if mode.lower() in valid_modes:
-                self.schedule_mode = mode.lower()
+            if self.force_eco_mode or self.sleep_mode_active:
+                _LOGGER.debug(f"Using eco temp due to force_eco or sleep: {self.eco_temp}°C")
+                return self.eco_temp
+            elif self.override_mode:
+                _LOGGER.debug(f"Using comfort temp due to override: {self.comfort_temp}°C")
+                return self.comfort_temp
+            elif self.schedule_mode == "eco":
+                _LOGGER.debug(f"Using eco temp due to schedule: {self.eco_temp}°C")
+                return self.eco_temp
+            elif self.schedule_mode == "boost":
+                _LOGGER.debug(f"Using boost temp due to schedule: {self.boost_temp}°C")
+                return self.boost_temp
+            elif self.schedule_mode == "off":
+                _LOGGER.debug(f"Schedule is off but returning comfort temp: {self.comfort_temp}°C")
+                return self.comfort_temp
             else:
-                self.schedule_mode = "comfort"
-                
-            _LOGGER.debug(f"Schedule {schedule_entity} using mode from attribute: {self.schedule_mode}")
-        else:
-            # Fallback to old logic if no mode attribute
-            if state.state == "on":
-                self.schedule_mode = "comfort"
-            else:
-                self.schedule_mode = "eco"
-            
-            _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
-        
-        # Log the full state for debugging
-        _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
- 
-    # In __init__.py, update the _determine_base_temperature method with debug logging:    
-    def _determine_base_temperature(self) -> float:
-        """Determine the base target temperature."""
-        # Add debug logging
-        _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
-        
+                _LOGGER.debug(f"Default to comfort temp: {self.comfort_temp}°C")
+                return self.comfort_temp        
         if self.force_eco_mode or self.sleep_mode_active:
             _LOGGER.debug(f"Using eco temp due to force_eco or sleep: {self.eco_temp}°C")
             return self.eco_temp
@@ -517,6 +529,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
