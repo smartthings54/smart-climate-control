@@ -250,6 +250,71 @@ class SmartClimateCoordinator:
             
             if bed1 and bed2:
                 self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
+
+    async def _check_schedule_status(self) -> None:
+            """Check schedule entity for current mode."""
+            # ... existing schedule code ...
+            
+        async def _check_presence_status(self) -> bool:  # ← ADD THIS NEW METHOD HERE
+            """Check if someone is home based on presence tracker."""
+            presence_tracker = self.config.get(CONF_PRESENCE_TRACKER)
+            if not presence_tracker:
+                # No presence tracker configured, assume someone is home
+                return True
+            
+            state = self.hass.states.get(presence_tracker)
+            if not state:
+                # Entity not found, assume someone is home
+                _LOGGER.warning(f"Presence tracker {presence_tracker} not found")
+                return True
+            
+            # Get the state and convert to lowercase for comparison
+            state_value = str(state.state).lower().strip()
+            
+            _LOGGER.debug(f"Presence tracker {presence_tracker} state: {state.state} (lowercase: {state_value})")
+            
+            # Check the state based on entity type
+            entity_domain = presence_tracker.split('.')[0]
+            
+            if entity_domain in ['device_tracker', 'person']:
+                # Standard presence entities
+                return state_value not in ['away', 'not_home', 'unknown', 'unavailable']
+            
+            elif entity_domain == 'zone':
+                # Zone entities - check if count > 0
+                try:
+                    return int(state.state) > 0
+                except:
+                    return state_value not in ['0', 'unknown', 'unavailable']
+            
+            elif entity_domain == 'sensor':
+                # For sensors like your combined_tracker
+                # "Home" = someone home, "Away" = nobody home
+                if state_value in ['home', 'on', 'true', '1']:
+                    return True
+                elif state_value in ['away', 'not_home', 'not home', 'off', 'false', '0', 'unknown', 'unavailable']:
+                    return False
+                else:
+                    # Unknown state - log it and default to home
+                    _LOGGER.warning(f"Unknown presence state: {state.state}")
+                    return True
+            
+            elif entity_domain == 'input_boolean':
+                # For input_boolean (on = home, off = away)
+                return state_value == 'on'
+            
+            elif entity_domain == 'group':
+                # For groups (on = someone home, off/not_home = nobody home)
+                return state_value in ['on', 'home']
+            
+            else:
+                # Unknown entity type
+                _LOGGER.debug(f"Unknown entity type {entity_domain}, checking state")
+                return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
+        
+        def _determine_base_temperature(self) -> float:  # ← This method already exists
+            """Determine the base target temperature."""
+            # ... existing code ...    
     
     async def _check_schedule_status(self) -> None:
         """Check schedule entity for current mode."""
@@ -327,6 +392,11 @@ class SmartClimateCoordinator:
         
         if self.override_mode:
             return "on", base_temp, "Manual override"
+            
+        # Check presence (ADD THIS SECTION if not present)
+        someone_home = await self._check_presence_status()
+        if not someone_home:
+            return "off", None, "Nobody home"            
         
         # Check if schedule is off
         if self.schedule_mode == "off" and not self.force_eco_mode:
@@ -449,5 +519,6 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
