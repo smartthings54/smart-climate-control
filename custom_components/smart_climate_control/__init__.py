@@ -252,104 +252,104 @@ class SmartClimateCoordinator:
                 if bed1 and bed2:
                     self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
     
-        async def _check_schedule_status(self) -> None:
-            """Check schedule entity for current mode."""
-            schedule_entity = self.config.get(CONF_SCHEDULE_ENTITY)
-            if not schedule_entity:
-                self.schedule_mode = "comfort"
-                return
+    async def _check_schedule_status(self) -> None:
+        """Check schedule entity for current mode."""
+        schedule_entity = self.config.get(CONF_SCHEDULE_ENTITY)
+        if not schedule_entity:
+            self.schedule_mode = "comfort"
+            return
+        
+        state = self.hass.states.get(schedule_entity)
+        if not state:
+            self.schedule_mode = "comfort"
+            return
+        
+        # Check if schedule has a mode attribute (like yours does!)
+        if "mode" in state.attributes:
+            # Use the mode from the schedule entity
+            mode = state.attributes.get("mode", "comfort")
             
-            state = self.hass.states.get(schedule_entity)
-            if not state:
-                self.schedule_mode = "comfort"
-                return
-            
-            # Check if schedule has a mode attribute (like yours does!)
-            if "mode" in state.attributes:
-                # Use the mode from the schedule entity
-                mode = state.attributes.get("mode", "comfort")
-                
-                # Validate the mode
-                valid_modes = ["comfort", "eco", "boost", "off"]
-                if mode.lower() in valid_modes:
-                    self.schedule_mode = mode.lower()
-                else:
-                    self.schedule_mode = "comfort"
-                    
-                _LOGGER.debug(f"Schedule {schedule_entity} using mode from attribute: {self.schedule_mode}")
+            # Validate the mode
+            valid_modes = ["comfort", "eco", "boost", "off"]
+            if mode.lower() in valid_modes:
+                self.schedule_mode = mode.lower()
             else:
-                # Fallback to old logic if no mode attribute
-                if state.state == "on":
-                    self.schedule_mode = "comfort"
-                else:
-                    self.schedule_mode = "eco"
+                self.schedule_mode = "comfort"
                 
-                _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
-            
-            # Log the full state for debugging
-            _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
-                
-        async def _check_presence_status(self) -> bool:
-            """Check if someone is home based on presence tracker."""
-            presence_tracker = self.config.get(CONF_PRESENCE_TRACKER)
-            if not presence_tracker:
-                # No presence tracker configured, assume someone is home
-                return True
-            
-            state = self.hass.states.get(presence_tracker)
-            if not state:
-                # Entity not found, assume someone is home
-                _LOGGER.warning(f"Presence tracker {presence_tracker} not found")
-                return True
-            
-            # Get the state and convert to lowercase for comparison
-            state_value = str(state.state).lower().strip()
-            
-            _LOGGER.debug(f"Presence tracker {presence_tracker} state: {state.state} (lowercase: {state_value})")
-            
-            # Check the state based on entity type
-            entity_domain = presence_tracker.split('.')[0]
-            
-            if entity_domain in ['device_tracker', 'person']:
-                # Standard presence entities
-                return state_value not in ['away', 'not_home', 'unknown', 'unavailable']
-            
-            elif entity_domain == 'zone':
-                # Zone entities - check if count > 0
-                try:
-                    return int(state.state) > 0
-                except:
-                    return state_value not in ['0', 'unknown', 'unavailable']
-            
-            elif entity_domain == 'sensor':
-                # For sensors like your combined_tracker
-                # "Home" = someone home, "Away" = nobody home
-                if state_value in ['home', 'on', 'true', '1']:
-                    return True
-                elif state_value in ['away', 'not_home', 'not home', 'off', 'false', '0', 'unknown', 'unavailable']:
-                    return False
-                else:
-                    # Unknown state - log it and default to home
-                    _LOGGER.warning(f"Unknown presence state: {state.state}")
-                    return True
-            
-            elif entity_domain == 'input_boolean':
-                # For input_boolean (on = home, off = away)
-                return state_value == 'on'
-            
-            elif entity_domain == 'group':
-                # For groups (on = someone home, off/not_home = nobody home)
-                return state_value in ['on', 'home']
-            
+            _LOGGER.debug(f"Schedule {schedule_entity} using mode from attribute: {self.schedule_mode}")
+        else:
+            # Fallback to old logic if no mode attribute
+            if state.state == "on":
+                self.schedule_mode = "comfort"
             else:
-                # Unknown entity type
-                _LOGGER.debug(f"Unknown entity type {entity_domain}, checking state")
-                return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
-     
-        def _determine_base_temperature(self) -> float:
-            """Determine the base target temperature."""
-            # Add debug logging
-            _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
+                self.schedule_mode = "eco"
+            
+            _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
+        
+        # Log the full state for debugging
+        _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
+            
+    async def _check_presence_status(self) -> bool:
+        """Check if someone is home based on presence tracker."""
+        presence_tracker = self.config.get(CONF_PRESENCE_TRACKER)
+        if not presence_tracker:
+            # No presence tracker configured, assume someone is home
+            return True
+        
+        state = self.hass.states.get(presence_tracker)
+        if not state:
+            # Entity not found, assume someone is home
+            _LOGGER.warning(f"Presence tracker {presence_tracker} not found")
+            return True
+        
+        # Get the state and convert to lowercase for comparison
+        state_value = str(state.state).lower().strip()
+        
+        _LOGGER.debug(f"Presence tracker {presence_tracker} state: {state.state} (lowercase: {state_value})")
+        
+        # Check the state based on entity type
+        entity_domain = presence_tracker.split('.')[0]
+        
+        if entity_domain in ['device_tracker', 'person']:
+            # Standard presence entities
+            return state_value not in ['away', 'not_home', 'unknown', 'unavailable']
+        
+        elif entity_domain == 'zone':
+            # Zone entities - check if count > 0
+            try:
+                return int(state.state) > 0
+            except:
+                return state_value not in ['0', 'unknown', 'unavailable']
+        
+        elif entity_domain == 'sensor':
+            # For sensors like your combined_tracker
+            # "Home" = someone home, "Away" = nobody home
+            if state_value in ['home', 'on', 'true', '1']:
+                return True
+            elif state_value in ['away', 'not_home', 'not home', 'off', 'false', '0', 'unknown', 'unavailable']:
+                return False
+            else:
+                # Unknown state - log it and default to home
+                _LOGGER.warning(f"Unknown presence state: {state.state}")
+                return True
+        
+        elif entity_domain == 'input_boolean':
+            # For input_boolean (on = home, off = away)
+            return state_value == 'on'
+        
+        elif entity_domain == 'group':
+            # For groups (on = someone home, off/not_home = nobody home)
+            return state_value in ['on', 'home']
+        
+        else:
+            # Unknown entity type
+            _LOGGER.debug(f"Unknown entity type {entity_domain}, checking state")
+            return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
+ 
+    def _determine_base_temperature(self) -> float:
+        """Determine the base target temperature."""
+        # Add debug logging
+        _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
             
             if self.force_eco_mode or self.sleep_mode_active:
                 _LOGGER.debug(f"Using eco temp due to force_eco or sleep: {self.eco_temp}°C")
@@ -529,6 +529,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
