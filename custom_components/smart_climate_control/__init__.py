@@ -64,6 +64,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "entry": entry,
     }
     
+    # Options update listener - Handle configuration changes without restart
+    async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Handle options update."""
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        coordinator.update_from_options()
+        await coordinator.async_update()
+        _LOGGER.info("Configuration updated from options")
+    
+    # Register the options update listener
+    entry.add_update_listener(async_update_options)
+    
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
@@ -546,4 +557,5 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
