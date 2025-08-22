@@ -123,7 +123,7 @@ class SmartClimateCoordinator:
         self.force_eco_mode = False
         self.schedule_mode = "comfort"
         self.current_action = "off"
-        self.target_temperature = None
+        self.target_temperature = self.config.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)  # ← ONLY ONE, with default value
         self.last_avg_house_over_limit = False
         self.door_open_time = None
         self.sleep_mode_active = False
@@ -170,7 +170,7 @@ class SmartClimateCoordinator:
             # Check schedule status
             await self._check_schedule_status()
             
-            # Determine target temperature
+            # Determine target temperature (always set this, not just when heating)
             base_temp = self._determine_base_temperature()
             
             # Main control logic
@@ -187,9 +187,18 @@ class SmartClimateCoordinator:
             
             # Update state
             self.current_action = action
-            self.target_temperature = temperature
+            
+            # ALWAYS set target temperature, even when off
+            # If heating is on, use the calculated temperature
+            # If heating is off, still show what the target WOULD be
+            if temperature is not None:
+                self.target_temperature = temperature
+            else:
+                # When off, show what the target temperature would be if it turned on
+                self.target_temperature = base_temp
+            
             self.debug_text = self._format_debug_text(
-                action, temperature, room_temp, avg_house_temp, outside_temp, reason
+                action, self.target_temperature, room_temp, avg_house_temp, outside_temp, reason
             )
             
             # Control heat pump
@@ -199,7 +208,7 @@ class SmartClimateCoordinator:
             self.hass.bus.async_fire(f"{DOMAIN}_state_updated", {
                 "entry_id": self.entry.entry_id,
                 "action": action,
-                "temperature": temperature,
+                "temperature": self.target_temperature,  # Always send the target
                 "debug": self.debug_text,
             })
             
@@ -377,37 +386,37 @@ class SmartClimateCoordinator:
         """Calculate control action and temperature."""
         # Check basic conditions
         if not self.enabled:
-            return "off", None, "System disabled"
+            return "off", base_temp, "System disabled"  # Return base_temp instead of None
         
         if door_open:
-            return "off", None, "Door open"
+            return "off", base_temp, "Door open"  # Return base_temp instead of None
         
         if self.override_mode:
             return "on", base_temp, "Manual override"
             
-        # Check presence (ADD THIS SECTION if not present)
+        # Check presence
         someone_home = await self._check_presence_status()
         if not someone_home:
-            return "off", None, "Nobody home"            
+            return "off", base_temp, "Nobody home"  # Return base_temp instead of None
         
         # Check if schedule is off
         if self.schedule_mode == "off" and not self.force_eco_mode:
-            return "off", None, "Schedule off"
+            return "off", base_temp, "Schedule off"  # Return base_temp instead of None
         
         # Check house average temperature limit
         if avg_house_temp is not None:
             if self.last_avg_house_over_limit:
                 if avg_house_temp > (self.max_house_temp - 0.5):
-                    return "off", None, "House temp limit"
+                    return "off", base_temp, "House temp limit"  # Return base_temp instead of None
             elif avg_house_temp > self.max_house_temp:
                 self.last_avg_house_over_limit = True
-                return "off", None, "House temp limit"
+                return "off", base_temp, "House temp limit"  # Return base_temp instead of None
             else:
                 self.last_avg_house_over_limit = False
         
         # Check room temperature
         if room_temp is None:
-            return "off", None, "No room temp data"
+            return "off", base_temp, "No room temp data"  # Return base_temp instead of None
         
         # Deadband control
         turn_on_temp = base_temp - self.deadband_below
@@ -416,10 +425,10 @@ class SmartClimateCoordinator:
         if room_temp <= turn_on_temp:
             return "on", base_temp, f"Heating needed ({room_temp:.1f}°C <= {turn_on_temp:.1f}°C)"
         elif room_temp >= turn_off_temp:
-            return "off", None, f"Too hot ({room_temp:.1f}°C >= {turn_off_temp:.1f}°C)"
+            return "off", base_temp, f"Too hot ({room_temp:.1f}°C >= {turn_off_temp:.1f}°C)"  # Return base_temp
         else:
-            # In deadband - maintain current state
-            return self.current_action, self.target_temperature if self.current_action == "on" else None, "In deadband"
+            # In deadband - maintain current state but always return base_temp
+            return self.current_action, base_temp, "In deadband"  # Always return base_temp
     
     async def _control_heat_pump(self, action: str, temperature: Optional[float]) -> None:
         """Control the heat pump entity."""
@@ -511,6 +520,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
