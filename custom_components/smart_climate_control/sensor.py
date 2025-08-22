@@ -64,13 +64,13 @@ class SmartClimateStatusSensor(SmartClimateBaseSensor):
 
 class SmartClimateModeSensor(SmartClimateBaseSensor):
     """Mode sensor for Smart Climate Control."""
-
+    
     def __init__(self, coordinator, config_entry):
         """Initialize the mode sensor."""
         super().__init__(coordinator, config_entry, "mode")
         self._attr_name = "Active Mode"
         self._attr_icon = "mdi:home-thermometer"
-
+    
     @property
     def state(self):
         """Return the current mode."""
@@ -79,7 +79,9 @@ class SmartClimateModeSensor(SmartClimateBaseSensor):
         elif self.coordinator.override_mode:
             return "Override"
         else:
-            return self.coordinator.schedule_mode "Unknown"
+            # Capitalize the schedule mode (handles comfort, boost, eco, off)
+            mode = self.coordinator.schedule_mode
+            return mode.capitalize() if mode else "Unknown"
 
 
 class SmartClimateTargetSensor(SmartClimateBaseSensor):
@@ -98,3 +100,4 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
         """Return the target temperature."""
 
         return self.coordinator.target_temperature
+
