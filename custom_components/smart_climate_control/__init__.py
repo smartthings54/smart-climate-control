@@ -123,7 +123,7 @@ class SmartClimateCoordinator:
         self.force_eco_mode = False
         self.schedule_mode = "comfort"
         self.current_action = "off"
-        self.target_temperature = self.config.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)  # ← ONLY ONE, with default value
+        self.target_temperature = self._get_config_value(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
         self.last_avg_house_over_limit = False
         self.door_open_time = None
         self.sleep_mode_active = False
@@ -133,16 +133,39 @@ class SmartClimateCoordinator:
         self.last_sent_action = None
         self.last_sent_temperature = None
         
-        # Temperature settings
-        self.comfort_temp = self.config.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
-        self.eco_temp = self.config.get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
-        self.boost_temp = self.config.get(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)
+        # Temperature settings - now properly reading from options
+        self.comfort_temp = self._get_config_value(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
+        self.eco_temp = self._get_config_value(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
+        self.boost_temp = self._get_config_value(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)
         
-        # Control parameters
-        self.deadband_below = self.config.get(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
-        self.deadband_above = self.config.get(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
-        self.max_house_temp = self.config.get(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
-        self.weather_comp_factor = self.config.get(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
+        # Control parameters - now properly reading from options
+        self.deadband_below = self._get_config_value(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
+        self.deadband_above = self._get_config_value(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
+        self.max_house_temp = self._get_config_value(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
+        self.weather_comp_factor = self._get_config_value(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
+        
+    def _get_config_value(self, key: str, default: Any) -> Any:
+        """Get configuration value from options first, then data, then default."""
+        # Try options first (these are updated when user changes settings)
+        if self.entry.options and key in self.entry.options:
+            return self.entry.options[key]
+        # Fall back to original data
+        if key in self.config:
+            return self.config[key]
+        # Use default
+        return default
+        
+    def update_from_options(self) -> None:
+        """Update coordinator values from options (called when options change)."""
+        self.comfort_temp = self._get_config_value(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
+        self.eco_temp = self._get_config_value(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
+        self.boost_temp = self._get_config_value(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)
+        self.deadband_below = self._get_config_value(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
+        self.deadband_above = self._get_config_value(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
+        self.max_house_temp = self._get_config_value(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
+        self.weather_comp_factor = self._get_config_value(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
+        
+        _LOGGER.debug(f"Updated config from options - Deadband below: {self.deadband_below}, above: {self.deadband_above}")
         
     async def async_initialize(self) -> None:
         """Initialize the coordinator."""
@@ -152,12 +175,14 @@ class SmartClimateCoordinator:
             self.comfort_temp = stored_data.get("comfort_temp", self.comfort_temp)
             self.eco_temp = stored_data.get("eco_temp", self.eco_temp)
             self.boost_temp = stored_data.get("boost_temp", self.boost_temp)
-            # Load the last target temperature
             self.target_temperature = stored_data.get("last_target", self.comfort_temp)
     
     async def async_update(self, now=None) -> None:
         """Update climate control logic."""
         try:
+            # Update configuration from options each time (in case user changed settings)
+            self.update_from_options()
+            
             # Get sensor values
             room_temp = await self._get_sensor_value(self.config[CONF_ROOM_SENSOR])
             outside_temp = await self._get_sensor_value(self.config[CONF_OUTSIDE_SENSOR], 5.0)
@@ -172,7 +197,7 @@ class SmartClimateCoordinator:
             # Check schedule status
             await self._check_schedule_status()
             
-            # Determine target temperature (always set this, not just when heating)
+            # Determine target temperature
             base_temp = self._determine_base_temperature()
             
             # Main control logic
@@ -181,22 +206,19 @@ class SmartClimateCoordinator:
             )
             
             # Apply weather compensation if heating
-            if action == "on" and outside_temp < 0:
+            if action == "on" and temperature is not None and outside_temp < 0:
                 compensation = min(abs(outside_temp) * self.weather_comp_factor, 5.0)
-                temperature = min(temperature + compensation, self.config.get(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
-                temperature = max(temperature, self.config.get(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP))
+                temperature = min(temperature + compensation, self._get_config_value(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
+                temperature = max(temperature, self._get_config_value(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP))
                 temperature = round(temperature)
             
             # Update state
             self.current_action = action
             
-            # ALWAYS set target temperature, even when off
-            # If heating is on, use the calculated temperature
-            # If heating is off, still show what the target WOULD be
+            # Set target temperature
             if temperature is not None:
                 self.target_temperature = temperature
             else:
-                # When off, show what the target temperature would be if it turned on
                 self.target_temperature = base_temp
             
             self.debug_text = self._format_debug_text(
@@ -210,7 +232,7 @@ class SmartClimateCoordinator:
             self.hass.bus.async_fire(f"{DOMAIN}_state_updated", {
                 "entry_id": self.entry.entry_id,
                 "action": action,
-                "temperature": self.target_temperature,  # Always send the target
+                "temperature": self.target_temperature,
                 "debug": self.debug_text,
             })
             
@@ -254,14 +276,14 @@ class SmartClimateCoordinator:
         return False
  
     async def _check_sleep_status(self) -> None:
-            """Check if sleep mode should be active."""
-            bed_sensors = self.config.get(CONF_BED_SENSORS, [])
-            if len(bed_sensors) >= 2:
-                bed1 = self.hass.states.get(bed_sensors[0])
-                bed2 = self.hass.states.get(bed_sensors[1])
-                
-                if bed1 and bed2:
-                    self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
+        """Check if sleep mode should be active."""
+        bed_sensors = self.config.get(CONF_BED_SENSORS, [])
+        if len(bed_sensors) >= 2:
+            bed1 = self.hass.states.get(bed_sensors[0])
+            bed2 = self.hass.states.get(bed_sensors[1])
+            
+            if bed1 and bed2:
+                self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
     
     async def _check_schedule_status(self) -> None:
         """Check schedule entity for current mode."""
@@ -275,12 +297,9 @@ class SmartClimateCoordinator:
             self.schedule_mode = "comfort"
             return
         
-        # Check if schedule has a mode attribute (like yours does!)
+        # Check if schedule has a mode attribute
         if "mode" in state.attributes:
-            # Use the mode from the schedule entity
             mode = state.attributes.get("mode", "comfort")
-            
-            # Validate the mode
             valid_modes = ["comfort", "eco", "boost", "off"]
             if mode.lower() in valid_modes:
                 self.schedule_mode = mode.lower()
@@ -296,70 +315,48 @@ class SmartClimateCoordinator:
                 self.schedule_mode = "eco"
             
             _LOGGER.debug(f"Schedule {schedule_entity} state: {state.state}, mode: {self.schedule_mode}")
-        
-        # Log the full state for debugging
-        _LOGGER.debug(f"Schedule full state: {state.state}, attributes: {state.attributes}")
             
     async def _check_presence_status(self) -> bool:
         """Check if someone is home based on presence tracker."""
         presence_tracker = self.config.get(CONF_PRESENCE_TRACKER)
         if not presence_tracker:
-            # No presence tracker configured, assume someone is home
             return True
         
         state = self.hass.states.get(presence_tracker)
         if not state:
-            # Entity not found, assume someone is home
             _LOGGER.warning(f"Presence tracker {presence_tracker} not found")
             return True
         
-        # Get the state and convert to lowercase for comparison
         state_value = str(state.state).lower().strip()
-        
         _LOGGER.debug(f"Presence tracker {presence_tracker} state: {state.state} (lowercase: {state_value})")
         
-        # Check the state based on entity type
         entity_domain = presence_tracker.split('.')[0]
         
         if entity_domain in ['device_tracker', 'person']:
-            # Standard presence entities
             return state_value not in ['away', 'not_home', 'unknown', 'unavailable']
-        
         elif entity_domain == 'zone':
-            # Zone entities - check if count > 0
             try:
                 return int(state.state) > 0
             except:
                 return state_value not in ['0', 'unknown', 'unavailable']
-        
         elif entity_domain == 'sensor':
-            # For sensors like your combined_tracker
-            # "Home" = someone home, "Away" = nobody home
             if state_value in ['home', 'on', 'true', '1']:
                 return True
             elif state_value in ['away', 'not_home', 'not home', 'off', 'false', '0', 'unknown', 'unavailable']:
                 return False
             else:
-                # Unknown state - log it and default to home
                 _LOGGER.warning(f"Unknown presence state: {state.state}")
                 return True
-        
         elif entity_domain == 'input_boolean':
-            # For input_boolean (on = home, off = away)
             return state_value == 'on'
-        
         elif entity_domain == 'group':
-            # For groups (on = someone home, off/not_home = nobody home)
             return state_value in ['on', 'home']
-        
         else:
-            # Unknown entity type
             _LOGGER.debug(f"Unknown entity type {entity_domain}, checking state")
             return state_value not in ['away', 'not_home', 'not home', 'off', '0', 'false', 'unknown', 'unavailable']
  
     def _determine_base_temperature(self) -> float:
         """Determine the base target temperature."""
-        # Add debug logging
         _LOGGER.debug(f"Temperature determination - Force eco: {self.force_eco_mode}, Sleep: {self.sleep_mode_active}, Override: {self.override_mode}, Schedule: {self.schedule_mode}")
         
         if self.force_eco_mode or self.sleep_mode_active:
@@ -388,10 +385,10 @@ class SmartClimateCoordinator:
         """Calculate control action and temperature."""
         # Check basic conditions
         if not self.enabled:
-            return "off", base_temp, "System disabled"  # Return base_temp instead of None
+            return "off", base_temp, "System disabled"
         
         if door_open:
-            return "off", base_temp, "Door open"  # Return base_temp instead of None
+            return "off", base_temp, "Door open"
         
         if self.override_mode:
             return "on", base_temp, "Manual override"
@@ -399,57 +396,61 @@ class SmartClimateCoordinator:
         # Check presence
         someone_home = await self._check_presence_status()
         if not someone_home:
-            return "off", base_temp, "Nobody home"  # Return base_temp instead of None
+            return "off", base_temp, "Nobody home"
         
         # Check if schedule is off
         if self.schedule_mode == "off" and not self.force_eco_mode:
-            return "off", base_temp, "Schedule off"  # Return base_temp instead of None
+            return "off", base_temp, "Schedule off"
         
         # Check house average temperature limit
         if avg_house_temp is not None:
             if self.last_avg_house_over_limit:
                 if avg_house_temp > (self.max_house_temp - 0.5):
-                    return "off", base_temp, "House temp limit"  # Return base_temp instead of None
+                    return "off", base_temp, "House temp limit"
             elif avg_house_temp > self.max_house_temp:
                 self.last_avg_house_over_limit = True
-                return "off", base_temp, "House temp limit"  # Return base_temp instead of None
+                return "off", base_temp, "House temp limit"
             else:
                 self.last_avg_house_over_limit = False
         
         # Check room temperature
         if room_temp is None:
-            return "off", base_temp, "No room temp data"  # Return base_temp instead of None
+            return "off", base_temp, "No room temp data"
         
-        # Deadband control
+        # Deadband control - using actual configured values
         turn_on_temp = base_temp - self.deadband_below
         turn_off_temp = base_temp + self.deadband_above
+        
+        _LOGGER.debug(f"Deadband control: base={base_temp}°C, turn_on<={turn_on_temp}°C, turn_off>={turn_off_temp}°C, room={room_temp}°C")
         
         if room_temp <= turn_on_temp:
             return "on", base_temp, f"Heating needed ({room_temp:.1f}°C <= {turn_on_temp:.1f}°C)"
         elif room_temp >= turn_off_temp:
-            return "off", base_temp, f"Too hot ({room_temp:.1f}°C >= {turn_off_temp:.1f}°C)"  # Return base_temp
+            return "off", base_temp, f"Too hot ({room_temp:.1f}°C >= {turn_off_temp:.1f}°C)"
         else:
-            # In deadband - maintain current state but always return base_temp
-            return self.current_action, base_temp, "In deadband"  # Always return base_temp
+            # In deadband - maintain current state
+            return self.current_action, base_temp, f"In deadband ({turn_on_temp:.1f}°C - {turn_off_temp:.1f}°C)"
     
     async def _control_heat_pump(self, action: str, temperature: Optional[float]) -> None:
         """Control the heat pump entity."""
         heat_pump = self.config.get(CONF_HEAT_PUMP)
         if not heat_pump:
+            _LOGGER.warning("No heat pump configured")
             return
         
-        # Check if we need to send a command (prevents beeping)
-        if action == self.last_sent_action and temperature == self.last_sent_temperature:
-            _LOGGER.debug(f"No change needed: {action} at {temperature}°C")
-            return
-            
         # Get current state of heat pump
         heat_pump_state = self.hass.states.get(heat_pump)
         if not heat_pump_state:
+            _LOGGER.warning(f"Heat pump entity {heat_pump} not found")
             return
             
         current_hvac_mode = heat_pump_state.state
         current_temp = heat_pump_state.attributes.get('temperature')
+        
+        # Check if we need to send a command
+        if action == self.last_sent_action and temperature == self.last_sent_temperature:
+            _LOGGER.debug(f"No change needed: {action} at {temperature}°C")
+            return
         
         # Update last sent values
         self.last_sent_action = action
@@ -458,30 +459,36 @@ class SmartClimateCoordinator:
         if action == "on" and temperature is not None:
             # Only send command if something needs to change
             if current_hvac_mode != "heat" or current_temp != temperature:
-                _LOGGER.debug(f"Changing heat pump: mode={current_hvac_mode}->heat, temp={current_temp}->{temperature}")
-                await self.hass.services.async_call(
-                    "climate",
-                    "set_temperature",
-                    {
-                        "entity_id": heat_pump,
-                        "temperature": temperature,
-                        "hvac_mode": "heat",
-                    },
-                    blocking=False,
-                )
+                _LOGGER.info(f"Setting heat pump: mode=heat, temp={temperature}°C (was mode={current_hvac_mode}, temp={current_temp})")
+                try:
+                    await self.hass.services.async_call(
+                        "climate",
+                        "set_temperature",
+                        {
+                            "entity_id": heat_pump,
+                            "temperature": temperature,
+                            "hvac_mode": "heat",
+                        },
+                        blocking=True,  # Wait for completion
+                    )
+                except Exception as e:
+                    _LOGGER.error(f"Failed to set heat pump temperature: {e}")
             else:
                 _LOGGER.debug(f"Heat pump already at correct settings: heat mode, {temperature}°C")
                 
         elif action == "off":
             # Only turn off if it's currently on
             if current_hvac_mode != "off":
-                _LOGGER.debug(f"Turning off heat pump (was {current_hvac_mode})")
-                await self.hass.services.async_call(
-                    "climate",
-                    SERVICE_TURN_OFF,
-                    {"entity_id": heat_pump},
-                    blocking=False,
-                )
+                _LOGGER.info(f"Turning off heat pump (was {current_hvac_mode})")
+                try:
+                    await self.hass.services.async_call(
+                        "climate",
+                        SERVICE_TURN_OFF,
+                        {"entity_id": heat_pump},
+                        blocking=True,  # Wait for completion
+                    )
+                except Exception as e:
+                    _LOGGER.error(f"Failed to turn off heat pump: {e}")
             else:
                 _LOGGER.debug("Heat pump already off")
     
@@ -496,16 +503,15 @@ class SmartClimateCoordinator:
         
         if action == "off":
             return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
-
         else:
-            # Correctly determine the mode for display
+            # Determine the mode for display
             if self.force_eco_mode or self.sleep_mode_active or self.schedule_mode == "eco":
                 mode = "Eco"
             elif self.schedule_mode == "boost":
                 mode = "Boost"
             else:
                 mode = "Comfort"
-            return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"            
+            return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
     
     async def reset_temperatures(self) -> None:
         """Reset temperatures to defaults."""
@@ -518,18 +524,8 @@ class SmartClimateCoordinator:
             "comfort_temp": self.comfort_temp,
             "eco_temp": self.eco_temp,
             "boost_temp": self.boost_temp,
-            "last_target": self.target_temperature,  # Save the current target
+            "last_target": self.target_temperature,
         })
         
         # Update
         await self.async_update()
-
-
-
-
-
-
-
-
-
-
