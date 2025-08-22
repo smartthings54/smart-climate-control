@@ -152,6 +152,8 @@ class SmartClimateCoordinator:
             self.comfort_temp = stored_data.get("comfort_temp", self.comfort_temp)
             self.eco_temp = stored_data.get("eco_temp", self.eco_temp)
             self.boost_temp = stored_data.get("boost_temp", self.boost_temp)
+            # Load the last target temperature
+            self.target_temperature = stored_data.get("last_target", self.comfort_temp)
     
     async def async_update(self, now=None) -> None:
         """Update climate control logic."""
@@ -516,10 +518,12 @@ class SmartClimateCoordinator:
             "comfort_temp": self.comfort_temp,
             "eco_temp": self.eco_temp,
             "boost_temp": self.boost_temp,
+            "last_target": self.target_temperature,  # Save the current target
         })
         
         # Update
         await self.async_update()
+
 
 
 
