@@ -135,6 +135,9 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
             "deadband_above": self.coordinator.deadband_above,
             "schedule_mode": self.coordinator.schedule_mode,
             "current_action": self.coordinator.current_action,
+            "weather_comp_factor": self.coordinator.weather_comp_factor,
+            "max_house_temp": self.coordinator.max_house_temp,
+            "heat_pump_entity": self.coordinator.config.get("heat_pump", "None"),
         }
 
     def _get_active_mode(self) -> str:
