@@ -511,7 +511,24 @@ class SmartClimateCoordinator:
                 mode = "Boost"
             else:
                 mode = "Comfort"
-            return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
+            
+            # For debug text, recalculate the turn-on threshold using the FINAL temperature
+            # This ensures the displayed reason matches the actual target temperature
+            if temperature is not None and room_temp is not None:
+                turn_on_temp = temperature - self.deadband_below
+                turn_off_temp = temperature + self.deadband_above
+                
+                # Generate accurate reason text based on final temperature
+                if room_temp <= turn_on_temp:
+                    accurate_reason = f"Heating needed ({room_temp:.1f}°C <= {turn_on_temp:.1f}°C)"
+                elif room_temp >= turn_off_temp:
+                    accurate_reason = f"Too hot ({room_temp:.1f}°C >= {turn_off_temp:.1f}°C)"
+                else:
+                    accurate_reason = f"In deadband ({turn_on_temp:.1f}°C - {turn_off_temp:.1f}°C)"
+                
+                return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {accurate_reason}"
+            else:
+                return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
     
     async def reset_temperatures(self) -> None:
         """Reset temperatures to defaults."""
@@ -529,3 +546,4 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
