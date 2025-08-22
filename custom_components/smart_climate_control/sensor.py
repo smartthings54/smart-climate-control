@@ -75,11 +75,11 @@ class SmartClimateModeSensor(SmartClimateBaseSensor):
     def state(self):
         """Return the current mode."""
         if self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
-            return "eco"
+            return "Eco"
         elif self.coordinator.override_mode:
-            return "override"
+            return "Override"
         else:
-            return self.coordinator.schedule_mode
+            return self.coordinator.schedule_mode "Unknown"
 
 
 class SmartClimateTargetSensor(SmartClimateBaseSensor):
@@ -96,4 +96,5 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
     @property
     def state(self):
         """Return the target temperature."""
+
         return self.coordinator.target_temperature
