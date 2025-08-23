@@ -127,6 +127,7 @@ class SmartClimateCoordinator:
         self.entry = entry
         self.config = entry.data
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
+        self._update_lock = asyncio.Lock()
         
         # State variables
         self.enabled = True
@@ -190,66 +191,67 @@ class SmartClimateCoordinator:
     
     async def async_update(self, now=None) -> None:
         """Update climate control logic."""
-        try:
-            # Update configuration from options each time (in case user changed settings)
-            self.update_from_options()
-            
-            # Get sensor values
-            room_temp = await self._get_sensor_value(self.config[CONF_ROOM_SENSOR])
-            outside_temp = await self._get_sensor_value(self.config[CONF_OUTSIDE_SENSOR], 5.0)
-            avg_house_temp = await self._get_sensor_value(self.config.get(CONF_AVERAGE_SENSOR))
-            
-            # Check door status
-            door_open = await self._check_door_status()
-            
-            # Check sleep status
-            await self._check_sleep_status()
-            
-            # Check schedule status
-            await self._check_schedule_status()
-            
-            # Determine target temperature
-            base_temp = self._determine_base_temperature()
-            
-            # Main control logic
-            action, temperature, reason = await self._calculate_control(
-                room_temp, outside_temp, avg_house_temp, base_temp, door_open
-            )
-            
-            # Apply weather compensation if heating
-            if action == "on" and temperature is not None and outside_temp < 0:
-                compensation = min(abs(outside_temp) * self.weather_comp_factor, 5.0)
-                temperature = min(temperature + compensation, self._get_config_value(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
-                temperature = max(temperature, self._get_config_value(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP))
-                temperature = round(temperature)
-            
-            # Update state
-            self.current_action = action
-            
-            # Set target temperature
-            if temperature is not None:
-                self.target_temperature = temperature
-            else:
-                self.target_temperature = base_temp
-            
-            self.debug_text = self._format_debug_text(
-                action, self.target_temperature, room_temp, avg_house_temp, outside_temp, reason
-            )
-            
-            # Control heat pump
-            await self._control_heat_pump(action, temperature)
-            
-            # Fire event for state update
-            self.hass.bus.async_fire(f"{DOMAIN}_state_updated", {
-                "entry_id": self.entry.entry_id,
-                "action": action,
-                "temperature": self.target_temperature,
-                "debug": self.debug_text,
-            })
-            
-        except Exception as e:
-            _LOGGER.error(f"Error in climate control update: {e}")
-            self.debug_text = f"Error: {str(e)}"
+        async with self._update_lock:
+            try:
+                # Update configuration from options each time (in case user changed settings)
+                self.update_from_options()
+                
+                # Get sensor values
+                room_temp = await self._get_sensor_value(self.config[CONF_ROOM_SENSOR])
+                outside_temp = await self._get_sensor_value(self.config[CONF_OUTSIDE_SENSOR], 5.0)
+                avg_house_temp = await self._get_sensor_value(self.config.get(CONF_AVERAGE_SENSOR))
+                
+                # Check door status
+                door_open = await self._check_door_status()
+                
+                # Check sleep status
+                await self._check_sleep_status()
+                
+                # Check schedule status
+                await self._check_schedule_status()
+                
+                # Determine target temperature
+                base_temp = self._determine_base_temperature()
+                
+                # Main control logic
+                action, temperature, reason = await self._calculate_control(
+                    room_temp, outside_temp, avg_house_temp, base_temp, door_open
+                )
+                
+                # Apply weather compensation if heating
+                if action == "on" and temperature is not None and outside_temp < 0:
+                    compensation = min(abs(outside_temp) * self.weather_comp_factor, 5.0)
+                    temperature = min(temperature + compensation, self._get_config_value(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
+                    temperature = max(temperature, self._get_config_value(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP))
+                    temperature = round(temperature)
+                
+                # Update state
+                self.current_action = action
+                
+                # Set target temperature
+                if temperature is not None:
+                    self.target_temperature = temperature
+                else:
+                    self.target_temperature = base_temp
+                
+                self.debug_text = self._format_debug_text(
+                    action, self.target_temperature, room_temp, avg_house_temp, outside_temp, reason
+                )
+                
+                # Control heat pump
+                await self._control_heat_pump(action, temperature)
+                
+                # Fire event for state update
+                self.hass.bus.async_fire(f"{DOMAIN}_state_updated", {
+                    "entry_id": self.entry.entry_id,
+                    "action": action,
+                    "temperature": self.target_temperature,
+                    "debug": self.debug_text,
+                })
+                
+            except Exception as e:
+                _LOGGER.error(f"Error in climate control update: {e}")
+                self.debug_text = f"Error: {str(e)}"
     
     async def _get_sensor_value(self, entity_id: str, default: Optional[float] = None) -> Optional[float]:
         """Get sensor value with validation."""
@@ -557,5 +559,6 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
