@@ -184,9 +184,22 @@ class SmartClimateCoordinator:
         # Load stored data
         stored_data = await self.store.async_load()
         if stored_data:
+            # Temperature settings
             self.comfort_temp = stored_data.get("comfort_temp", self.comfort_temp)
             self.eco_temp = stored_data.get("eco_temp", self.eco_temp)
             self.boost_temp = stored_data.get("boost_temp", self.boost_temp)
+            
+            # Control parameters
+            self.deadband_below = stored_data.get("deadband_below", self.deadband_below)
+            self.deadband_above = stored_data.get("deadband_above", self.deadband_above)
+            self.max_house_temp = stored_data.get("max_house_temp", self.max_house_temp)
+            self.weather_comp_factor = stored_data.get("weather_comp_factor", self.weather_comp_factor)
+            
+            # New parameters you might want to add
+            self.max_comp_temp = stored_data.get("max_comp_temp", DEFAULT_MAX_COMP_TEMP)
+            self.min_comp_temp = stored_data.get("min_comp_temp", DEFAULT_MIN_COMP_TEMP)
+            
+            # Load the last target temperature
             self.target_temperature = stored_data.get("last_target", self.comfort_temp)
     
     async def async_update(self, now=None) -> None:
@@ -559,6 +572,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
