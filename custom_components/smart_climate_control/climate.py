@@ -69,18 +69,23 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
                     self._last_active_mode = last_state.state
             if (temp := last_state.attributes.get(ATTR_TEMPERATURE)) is not None:
                 self._attr_target_temperature = float(temp)
-
-        # Listen for coordinator updates
-        self.coordinator.hass.bus.async_listen(
+        
+        # Listen for coordinator updates and store the unsubscribe callback
+        self._unsub_coordinator_update = self.coordinator.hass.bus.async_listen(
             f"{DOMAIN}_state_updated",
             self._handle_coordinator_update
         )
-
+    
     async def _handle_coordinator_update(self, event):
         """Handle coordinator state updates."""
         if event.data.get("entry_id") == self.coordinator.entry.entry_id:
             # Force entity state update
             self.async_write_ha_state()
+    
+    async def async_will_remove_from_hass(self):
+        """Clean up event listeners when entity is removed."""
+        if hasattr(self, '_unsub_coordinator_update'):
+            self._unsub_coordinator_update()
 
     @property
     def hvac_mode(self) -> HVACMode:
@@ -214,3 +219,4 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
         await self.async_set_hvac_mode(HVACMode.OFF)
+
