@@ -50,49 +50,79 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
+        _LOGGER.warning(f"INIT: {self._temp_type} temperature number entity created")
 
     @property
     def native_value(self):
         """Return the current value."""
         if self._temp_type == "comfort":
-            return self.coordinator.comfort_temp
+            value = self.coordinator.comfort_temp
         elif self._temp_type == "eco":
-            return self.coordinator.eco_temp
+            value = self.coordinator.eco_temp
         elif self._temp_type == "boost":
-            return self.coordinator.boost_temp
-        return None
+            value = self.coordinator.boost_temp
+        else:
+            value = None
+        
+        _LOGGER.warning(f"GET VALUE: {self._temp_type} = {value}°C")
+        return value
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
-        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
+        _LOGGER.warning(f"SET VALUE CALLED: {self._temp_type} to {value}°C")
         
-        # Update coordinator values
+        # Get old value for comparison
         if self._temp_type == "comfort":
+            old_value = self.coordinator.comfort_temp
             self.coordinator.comfort_temp = value
         elif self._temp_type == "eco":
+            old_value = self.coordinator.eco_temp
             self.coordinator.eco_temp = value
         elif self._temp_type == "boost":
+            old_value = self.coordinator.boost_temp
             self.coordinator.boost_temp = value
+        else:
+            old_value = None
+        
+        _LOGGER.warning(f"VALUE CHANGE: {self._temp_type} from {old_value}°C to {value}°C")
         
         # Save to storage with current target temperature
-        await self.coordinator.store.async_save({
-            "comfort_temp": self.coordinator.comfort_temp,
-            "eco_temp": self.coordinator.eco_temp,
-            "boost_temp": self.coordinator.boost_temp,
-            "last_target": self.coordinator.target_temperature,
-        })
+        try:
+            storage_data = {
+                "comfort_temp": self.coordinator.comfort_temp,
+                "eco_temp": self.coordinator.eco_temp,
+                "boost_temp": self.coordinator.boost_temp,
+                "last_target": self.coordinator.target_temperature,
+            }
+            _LOGGER.warning(f"SAVING TO STORAGE: {storage_data}")
+            await self.coordinator.store.async_save(storage_data)
+            _LOGGER.warning("STORAGE SAVE COMPLETED")
+        except Exception as e:
+            _LOGGER.error(f"STORAGE SAVE FAILED: {e}")
         
         # Force entity state update
-        self.async_write_ha_state()
+        try:
+            self.async_write_ha_state()
+            _LOGGER.warning("ENTITY STATE UPDATE COMPLETED")
+        except Exception as e:
+            _LOGGER.error(f"ENTITY STATE UPDATE FAILED: {e}")
         
         # Update coordinator and trigger climate control logic
-        await self.coordinator.async_update()
+        try:
+            await self.coordinator.async_update()
+            _LOGGER.warning("COORDINATOR UPDATE COMPLETED")
+        except Exception as e:
+            _LOGGER.error(f"COORDINATOR UPDATE FAILED: {e}")
         
         # Fire an event to update other entities
-        self.hass.bus.async_fire(f"{DOMAIN}_temperature_changed", {
-            "temp_type": self._temp_type,
-            "value": value,
-            "entity_id": self.entity_id,
-        })
+        try:
+            self.hass.bus.async_fire(f"{DOMAIN}_temperature_changed", {
+                "temp_type": self._temp_type,
+                "value": value,
+                "entity_id": self.entity_id,
+            })
+            _LOGGER.warning("EVENT FIRED COMPLETED")
+        except Exception as e:
+            _LOGGER.error(f"EVENT FIRE FAILED: {e}")
         
-        _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
+        _LOGGER.warning(f"SET VALUE COMPLETED: {self._temp_type} = {value}°C")
