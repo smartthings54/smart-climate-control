@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
@@ -50,79 +51,64 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
-        _LOGGER.warning(f"INIT: {self._temp_type} temperature number entity created")
 
     @property
     def native_value(self):
         """Return the current value."""
         if self._temp_type == "comfort":
-            value = self.coordinator.comfort_temp
+            return self.coordinator.comfort_temp
         elif self._temp_type == "eco":
-            value = self.coordinator.eco_temp
+            return self.coordinator.eco_temp
         elif self._temp_type == "boost":
-            value = self.coordinator.boost_temp
-        else:
-            value = None
-        
-        _LOGGER.warning(f"GET VALUE: {self._temp_type} = {value}°C")
-        return value
+            return self.coordinator.boost_temp
+        return None
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
-        _LOGGER.warning(f"SET VALUE CALLED: {self._temp_type} to {value}°C")
+        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
         
-        # Get old value for comparison
+        # Update coordinator values
         if self._temp_type == "comfort":
-            old_value = self.coordinator.comfort_temp
             self.coordinator.comfort_temp = value
         elif self._temp_type == "eco":
-            old_value = self.coordinator.eco_temp
             self.coordinator.eco_temp = value
         elif self._temp_type == "boost":
-            old_value = self.coordinator.boost_temp
             self.coordinator.boost_temp = value
-        else:
-            old_value = None
-        
-        _LOGGER.warning(f"VALUE CHANGE: {self._temp_type} from {old_value}°C to {value}°C")
         
         # Save to storage with current target temperature
-        try:
-            storage_data = {
-                "comfort_temp": self.coordinator.comfort_temp,
-                "eco_temp": self.coordinator.eco_temp,
-                "boost_temp": self.coordinator.boost_temp,
-                "last_target": self.coordinator.target_temperature,
-            }
-            _LOGGER.warning(f"SAVING TO STORAGE: {storage_data}")
-            await self.coordinator.store.async_save(storage_data)
-            _LOGGER.warning("STORAGE SAVE COMPLETED")
-        except Exception as e:
-            _LOGGER.error(f"STORAGE SAVE FAILED: {e}")
-        
-        # Force entity state update
-        try:
-            self.async_write_ha_state()
-            _LOGGER.warning("ENTITY STATE UPDATE COMPLETED")
-        except Exception as e:
-            _LOGGER.error(f"ENTITY STATE UPDATE FAILED: {e}")
+        await self.coordinator.store.async_save({
+            "comfort_temp": self.coordinator.comfort_temp,
+            "eco_temp": self.coordinator.eco_temp,
+            "boost_temp": self.coordinator.boost_temp,
+            "last_target": self.coordinator.target_temperature,
+        })
         
         # Update coordinator and trigger climate control logic
-        try:
-            await self.coordinator.async_update()
-            _LOGGER.warning("COORDINATOR UPDATE COMPLETED")
-        except Exception as e:
-            _LOGGER.error(f"COORDINATOR UPDATE FAILED: {e}")
+        await self.coordinator.async_update()
+        
+        # Force entity state update with a small delay
+        self.async_write_ha_state()
+        
+        # Give HA a moment to process, then force another state update
+        await asyncio.sleep(0.1)
+        self.async_write_ha_state()
         
         # Fire an event to update other entities
-        try:
-            self.hass.bus.async_fire(f"{DOMAIN}_temperature_changed", {
-                "temp_type": self._temp_type,
-                "value": value,
-                "entity_id": self.entity_id,
-            })
-            _LOGGER.warning("EVENT FIRED COMPLETED")
-        except Exception as e:
-            _LOGGER.error(f"EVENT FIRE FAILED: {e}")
+        self.hass.bus.async_fire(f"{DOMAIN}_temperature_changed", {
+            "temp_type": self._temp_type,
+            "value": value,
+            "entity_id": self.entity_id,
+        })
         
-        _LOGGER.warning(f"SET VALUE COMPLETED: {self._temp_type} = {value}°C")
+        # Force update of all related entities
+        await asyncio.sleep(0.1)
+        for entity_id in [
+            f"number.{self.coordinator.entry.entry_id}_comfort_temp",
+            f"number.{self.coordinator.entry.entry_id}_eco_temp", 
+            f"number.{self.coordinator.entry.entry_id}_boost_temp",
+            f"climate.{self.coordinator.entry.entry_id}_climate"
+        ]:
+            if entity_id in self.hass.states.async_all():
+                self.hass.states.async_set(entity_id, self.hass.states.get(entity_id).state, force_update=True)
+        
+        _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
