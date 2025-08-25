@@ -4,8 +4,9 @@ import asyncio
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, DEFAULT_COMFORT_TEMP, DEFAULT_ECO_TEMP, DEFAULT_BOOST_TEMP
 
@@ -28,7 +29,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class SmartClimateTemperatureNumber(NumberEntity):
+class SmartClimateTemperatureNumber(NumberEntity, RestoreEntity):
     """Temperature number entity for Smart Climate Control."""
 
     _attr_has_entity_name = True
@@ -37,6 +38,7 @@ class SmartClimateTemperatureNumber(NumberEntity):
     _attr_native_step = 0.5
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_mode = NumberMode.SLIDER
+    _attr_should_poll = False
 
     def __init__(self, coordinator, config_entry, temp_type, name, default):
         """Initialize the number entity."""
@@ -51,9 +53,30 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
+        self._cached_value = None
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added to hass."""
+        await super().async_added_to_hass()
+        
+        # Listen for coordinator updates
+        self.async_on_remove(
+            self.coordinator.entry.add_update_listener(self._handle_coordinator_update)
+        )
+        
+        # Set initial cached value
+        self._cached_value = self.native_value
+
+    async def _handle_coordinator_update(self, entry):
+        """Handle coordinator updates."""
+        old_value = self._cached_value
+        new_value = self.native_value
+        if old_value != new_value:
+            self._cached_value = new_value
+            self.async_write_ha_state()
 
     @property
-    def native_value(self):
+    def native_value(self) -> float:
         """Return the current value."""
         if self._temp_type == "comfort":
             return self.coordinator.comfort_temp
@@ -63,17 +86,34 @@ class SmartClimateTemperatureNumber(NumberEntity):
             return self.coordinator.boost_temp
         return None
 
+    @property 
+    def state(self) -> float:
+        """Return the state of the entity."""
+        return self.native_value
+
     async def async_set_native_value(self, value: float) -> None:
-        """Set the value."""
-        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
+        """Set the value via dashboard slider."""
+        await self._update_temperature(value, "dashboard_slider")
+
+    async def async_set_value(self, value: float) -> None:
+        """Set the value via service call.""" 
+        await self._update_temperature(value, "service_call")
+
+    async def _update_temperature(self, value: float, source: str) -> None:
+        """Update temperature value from any source."""
+        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C from {source}")
         
         # Update coordinator values
+        old_value = self.native_value
         if self._temp_type == "comfort":
             self.coordinator.comfort_temp = value
         elif self._temp_type == "eco":
             self.coordinator.eco_temp = value
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
+        
+        # Update cached value immediately
+        self._cached_value = value
         
         # Save to storage with current target temperature
         await self.coordinator.store.async_save({
@@ -83,32 +123,43 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "last_target": self.coordinator.target_temperature,
         })
         
+        # Force immediate state update
+        self.async_write_ha_state()
+        
         # Update coordinator and trigger climate control logic
         await self.coordinator.async_update()
-        
-        # Force entity state update with a small delay
-        self.async_write_ha_state()
-        
-        # Give HA a moment to process, then force another state update
-        await asyncio.sleep(0.1)
-        self.async_write_ha_state()
         
         # Fire an event to update other entities
         self.hass.bus.async_fire(f"{DOMAIN}_temperature_changed", {
             "temp_type": self._temp_type,
-            "value": value,
+            "old_value": old_value,
+            "new_value": value,
             "entity_id": self.entity_id,
+            "source": source,
         })
         
-        # Force update of all related entities
-        await asyncio.sleep(0.1)
-        for entity_id in [
-            f"number.{self.coordinator.entry.entry_id}_comfort_temp",
-            f"number.{self.coordinator.entry.entry_id}_eco_temp", 
-            f"number.{self.coordinator.entry.entry_id}_boost_temp",
-            f"climate.{self.coordinator.entry.entry_id}_climate"
-        ]:
-            if entity_id in self.hass.states.async_all():
-                self.hass.states.async_set(entity_id, self.hass.states.get(entity_id).state, force_update=True)
+        # Schedule another state update to ensure UI refreshes
+        self.hass.async_create_task(self._delayed_state_update())
         
-        _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
+        _LOGGER.debug(f"Temperature {self._temp_type} updated from {old_value}°C to {value}°C via {source}")
+
+    async def _delayed_state_update(self):
+        """Force a delayed state update to ensure UI consistency."""
+        await asyncio.sleep(0.5)
+        self.async_write_ha_state()
+
+    @callback
+    def async_write_ha_state(self) -> None:
+        """Write the state to the state machine."""
+        # Update cached value before writing state
+        self._cached_value = self.native_value
+        super().async_write_ha_state()
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra state attributes."""
+        return {
+            "temp_type": self._temp_type,
+            "source": "Smart Climate Control",
+            "last_updated": self.hass.states.get(self.entity_id).last_updated if self.hass.states.get(self.entity_id) else None,
+        }
