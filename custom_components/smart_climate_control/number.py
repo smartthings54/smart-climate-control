@@ -1,10 +1,9 @@
 import logging
-import asyncio
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, DEFAULT_COMFORT_TEMP, DEFAULT_ECO_TEMP, DEFAULT_BOOST_TEMP
@@ -51,10 +50,17 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
+        # Store local value to prevent snap-back
+        self._local_value = None
 
     @property
     def native_value(self) -> float:
         """Return the current value."""
+        # If we have a local value from recent slider change, use it
+        if self._local_value is not None:
+            return self._local_value
+            
+        # Otherwise get from coordinator
         if self._temp_type == "comfort":
             return self.coordinator.comfort_temp
         elif self._temp_type == "eco":
@@ -67,10 +73,10 @@ class SmartClimateTemperatureNumber(NumberEntity):
         """Set the value via dashboard slider or service call."""
         _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
         
-        # Store old value for comparison
-        old_value = self.native_value
+        # IMMEDIATELY set local value to prevent slider snap-back
+        self._local_value = value
         
-        # Update coordinator values
+        # Update coordinator values SYNCHRONOUSLY to prevent timing issues
         if self._temp_type == "comfort":
             self.coordinator.comfort_temp = value
         elif self._temp_type == "eco":
@@ -78,81 +84,48 @@ class SmartClimateTemperatureNumber(NumberEntity):
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
         
-        # Save to storage with current target temperature
-        await self.coordinator.store.async_save({
-            "comfort_temp": self.coordinator.comfort_temp,
-            "eco_temp": self.coordinator.eco_temp,
-            "boost_temp": self.coordinator.boost_temp,
-            "last_target": self.coordinator.target_temperature,
-        })
+        # Clear local value now that coordinator is updated
+        self._local_value = None
         
-        # CRITICAL: Force immediate state update before anything else
+        # Immediately write state to prevent UI flickering
         self.async_write_ha_state()
         
-        # Small delay to let the state propagate
-        await asyncio.sleep(0.05)
-        
-        # Force another state update
-        self.async_write_ha_state()
+        # Save to storage
+        try:
+            await self.coordinator.store.async_save({
+                "comfort_temp": self.coordinator.comfort_temp,
+                "eco_temp": self.coordinator.eco_temp,
+                "boost_temp": self.coordinator.boost_temp,
+                "last_target": self.coordinator.target_temperature,
+            })
+        except Exception as e:
+            _LOGGER.error(f"Failed to save to storage: {e}")
         
         # Update coordinator and trigger climate control logic
-        await self.coordinator.async_update()
+        try:
+            await self.coordinator.async_update()
+        except Exception as e:
+            _LOGGER.error(f"Failed to update coordinator: {e}")
         
-        # Fire an event to notify other components
-        self.hass.bus.async_fire(f"{DOMAIN}_temperature_changed", {
+        _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
+
+    async def async_update(self) -> None:
+        """Update the entity."""
+        # Don't override if we have a pending local value
+        if self._local_value is None:
+            # Just trigger a state write with current coordinator values
+            self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return True
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra state attributes."""
+        return {
             "temp_type": self._temp_type,
-            "old_value": old_value,
-            "new_value": value,
-            "entity_id": self.entity_id,
-        })
-        
-        # Force update all entities in this integration
-        await self._force_integration_refresh()
-        
-        _LOGGER.debug(f"Temperature {self._temp_type} updated from {old_value}°C to {value}°C")
-
-    async def _force_integration_refresh(self):
-        """Force refresh of all entities in this integration."""
-        try:
-            # Get all entities from this integration
-            entity_registry = self.hass.helpers.entity_registry.async_get(self.hass)
-            entities = [
-                entry for entry in entity_registry.entities.values()
-                if entry.platform == DOMAIN
-            ]
-            
-            # Force update each entity
-            for entity in entities:
-                if entity.entity_id in self.hass.states.async_all():
-                    entity_obj = self.hass.states.get(entity.entity_id)
-                    if entity_obj:
-                        # Force state update
-                        self.hass.states.async_set(
-                            entity.entity_id,
-                            entity_obj.state,
-                            entity_obj.attributes,
-                            force_update=True
-                        )
-        except Exception as e:
-            _LOGGER.debug(f"Could not force integration refresh: {e}")
-
-    @callback
-    def async_write_ha_state(self) -> None:
-        """Write the state to Home Assistant."""
-        # Always call parent to ensure state is written
-        super().async_write_ha_state()
-        
-        # Also manually set the state to force UI update
-        try:
-            current_value = self.native_value
-            self.hass.states.async_set(
-                self.entity_id,
-                current_value,
-                {
-                    **self.state_attributes,
-                    "unit_of_measurement": self.unit_of_measurement,
-                },
-                force_update=True
-            )
-        except Exception as e:
-            _LOGGER.debug(f"Manual state set failed: {e}")
+            "coordinator_value": getattr(self.coordinator, f"{self._temp_type}_temp"),
+            "local_value": self._local_value,
+        }
