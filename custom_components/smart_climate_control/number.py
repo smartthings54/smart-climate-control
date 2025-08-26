@@ -64,6 +64,8 @@ class SmartClimateTemperatureNumber(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
+        _LOGGER.debug(f"async_set_native_value called for {self._temp_type} with value {value}")
+        
         # Update coordinator immediately
         if self._temp_type == "comfort":
             self.coordinator.comfort_temp = value
@@ -72,16 +74,26 @@ class SmartClimateTemperatureNumber(NumberEntity):
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
         
-        # Save to storage with the last_target included
-        await self.coordinator.store.async_save({
-            "comfort_temp": self.coordinator.comfort_temp,
-            "eco_temp": self.coordinator.eco_temp,
-            "boost_temp": self.coordinator.boost_temp,
-            "last_target": self.coordinator.target_temperature,
-        })
+        _LOGGER.debug(f"Coordinator {self._temp_type}_temp now: {getattr(self.coordinator, f'{self._temp_type}_temp')}")
         
-        # Update coordinator but don't await it (non-blocking)
-        self.hass.async_create_task(self.coordinator.async_update())
+        # Save to storage with the last_target included
+        try:
+            storage_data = {
+                "comfort_temp": self.coordinator.comfort_temp,
+                "eco_temp": self.coordinator.eco_temp,
+                "boost_temp": self.coordinator.boost_temp,
+                "last_target": self.coordinator.target_temperature,
+            }
+            _LOGGER.debug(f"Saving to storage: {storage_data}")
+            await self.coordinator.store.async_save(storage_data)
+            _LOGGER.debug("Storage save completed")
+        except Exception as e:
+            _LOGGER.error(f"Failed to save to storage: {e}")
         
         # Force state update immediately
         self.async_write_ha_state()
+        _LOGGER.debug(f"State updated for {self._temp_type}")
+        
+        # Update coordinator but don't await it (non-blocking)
+        self.hass.async_create_task(self.coordinator.async_update())
+        _LOGGER.debug("Coordinator update task created")
