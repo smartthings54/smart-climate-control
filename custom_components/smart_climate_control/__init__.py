@@ -475,9 +475,16 @@ class SmartClimateCoordinator:
             # Add weather compensation info if applied
             temp_str = f"{temperature}°C"
             if weather_compensation > 0 and original_temperature is not None:
-                temp_str = f"{temperature}°C (base:{original_temperature}°C +{weather_compensation:.1f}°C)"
+                temp_str = f"{temperature}°C (B:{original_temperature}°C +{weather_compensation:.1f}°C)"
+            
+            # Clean up the reason text - remove temperature comparisons
+            clean_reason = reason
+            if "Heating needed (" in reason:
+                clean_reason = "Heating needed"
+            elif "Too hot (" in reason:
+                clean_reason = "Too hot"
                 
-            return f"ON | {mode} {temp_str} | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
+            return f"ON | {mode} {temp_str} | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {clean_reason}"
     
     async def enable_smart_control(self, enable: bool) -> None:
         """Enable or disable smart control."""
@@ -522,3 +529,4 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
