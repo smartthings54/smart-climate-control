@@ -50,28 +50,10 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
-        # Store the current value to prevent snap-back
-        self._current_value = None
-
-    async def async_added_to_hass(self):
-        """When entity is added to hass."""
-        await super().async_added_to_hass()
-        
-        # Initialize current value from coordinator
-        if self._temp_type == "comfort":
-            self._current_value = self.coordinator.comfort_temp
-        elif self._temp_type == "eco":
-            self._current_value = self.coordinator.eco_temp
-        elif self._temp_type == "boost":
-            self._current_value = self.coordinator.boost_temp
 
     @property
-    def native_value(self) -> float:
+    def native_value(self):
         """Return the current value."""
-        # Return our stored value if we have it, otherwise get from coordinator
-        if self._current_value is not None:
-            return self._current_value
-            
         if self._temp_type == "comfort":
             return self.coordinator.comfort_temp
         elif self._temp_type == "eco":
@@ -81,58 +63,25 @@ class SmartClimateTemperatureNumber(NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set the value via dashboard slider or service call."""
-        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
-
-        # Store the new value immediately to prevent snap-back
-        self._current_value = value
-
-        # Update coordinator values
+        """Set the value."""
+        # Update coordinator immediately
         if self._temp_type == "comfort":
             self.coordinator.comfort_temp = value
         elif self._temp_type == "eco":
             self.coordinator.eco_temp = value
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
-
-        # Force Home Assistant to update the state immediately
+        
+        # Save to storage with the last_target included
+        await self.coordinator.store.async_save({
+            "comfort_temp": self.coordinator.comfort_temp,
+            "eco_temp": self.coordinator.eco_temp,
+            "boost_temp": self.coordinator.boost_temp,
+            "last_target": self.coordinator.target_temperature,
+        })
+        
+        # Update coordinator but don't await it (non-blocking)
+        self.hass.async_create_task(self.coordinator.async_update())
+        
+        # Force state update immediately
         self.async_write_ha_state()
-
-        try:
-            # Save to storage
-            await self.coordinator.store.async_save({
-                "comfort_temp": self.coordinator.comfort_temp,
-                "eco_temp": self.coordinator.eco_temp,
-                "boost_temp": self.coordinator.boost_temp,
-                "last_target": self.coordinator.target_temperature,
-            })
-
-            # Trigger coordinator update
-            await self.coordinator.async_update()
-            
-            _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
-            
-        except Exception as e:
-            _LOGGER.error(f"Failed to update {self._temp_type} temperature: {e}")
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return True
-
-    @property
-    def extra_state_attributes(self):
-        """Return extra state attributes."""
-        coordinator_value = None
-        if self._temp_type == "comfort":
-            coordinator_value = self.coordinator.comfort_temp
-        elif self._temp_type == "eco":
-            coordinator_value = self.coordinator.eco_temp
-        elif self._temp_type == "boost":
-            coordinator_value = self.coordinator.boost_temp
-            
-        return {
-            "temp_type": self._temp_type,
-            "current_value": self._current_value,
-            "coordinator_value": coordinator_value,
-        }
