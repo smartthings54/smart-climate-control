@@ -56,11 +56,9 @@ class SmartClimateTemperatureNumber(NumberEntity):
     @property
     def native_value(self) -> float:
         """Return the current value."""
-        # If we have a local value from recent slider change, use it
         if self._local_value is not None:
             return self._local_value
-            
-        # Otherwise get from coordinator
+
         if self._temp_type == "comfort":
             return self.coordinator.comfort_temp
         elif self._temp_type == "eco":
@@ -72,24 +70,19 @@ class SmartClimateTemperatureNumber(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the value via dashboard slider or service call."""
         _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
-        
-        # IMMEDIATELY set local value to prevent slider snap-back
+
+        # Hold local value until coordinator confirms update
         self._local_value = value
-        
-        # Update coordinator values SYNCHRONOUSLY to prevent timing issues
+        self.async_write_ha_state()
+
+        # Update coordinator values
         if self._temp_type == "comfort":
             self.coordinator.comfort_temp = value
         elif self._temp_type == "eco":
             self.coordinator.eco_temp = value
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
-        
-        # Clear local value now that coordinator is updated
-        self._local_value = None
-        
-        # Immediately write state to prevent UI flickering
-        self.async_write_ha_state()
-        
+
         # Save to storage
         try:
             await self.coordinator.store.async_save({
@@ -100,20 +93,22 @@ class SmartClimateTemperatureNumber(NumberEntity):
             })
         except Exception as e:
             _LOGGER.error(f"Failed to save to storage: {e}")
-        
-        # Update coordinator and trigger climate control logic
+
+        # Ask coordinator to update
         try:
             await self.coordinator.async_update()
         except Exception as e:
             _LOGGER.error(f"Failed to update coordinator: {e}")
-        
+
+        # Once coordinator is in sync, clear local value
+        self._local_value = None
+        self.async_write_ha_state()
+
         _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
 
     async def async_update(self) -> None:
         """Update the entity."""
-        # Don't override if we have a pending local value
         if self._local_value is None:
-            # Just trigger a state write with current coordinator values
             self.async_write_ha_state()
 
     @property
