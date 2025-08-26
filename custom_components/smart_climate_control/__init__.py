@@ -195,10 +195,14 @@ class SmartClimateCoordinator:
                 room_temp, outside_temp, avg_house_temp, base_temp, door_open
             )
             
+            # Track weather compensation
+            weather_compensation = 0
+            original_temperature = temperature
+            
             # Apply weather compensation if heating
-            if action == "on" and outside_temp < 0:
-                compensation = min(abs(outside_temp) * self.weather_comp_factor, 5.0)
-                temperature = min(temperature + compensation, self.config.get(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
+            if action == "on" and outside_temp < 0 and temperature is not None:
+                weather_compensation = min(abs(outside_temp) * self.weather_comp_factor, 5.0)
+                temperature = min(temperature + weather_compensation, self.config.get(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
                 temperature = max(temperature, self.config.get(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP))
                 temperature = round(temperature)
             
@@ -206,7 +210,8 @@ class SmartClimateCoordinator:
             self.current_action = action
             
             self.debug_text = self._format_debug_text(
-                action, temperature, room_temp, avg_house_temp, outside_temp, reason
+                action, temperature, room_temp, avg_house_temp, outside_temp, reason,
+                original_temperature, weather_compensation
             )
             
             # Control heat pump directly
@@ -449,7 +454,8 @@ class SmartClimateCoordinator:
     def _format_debug_text(
         self, action: str, temperature: Optional[float],
         room_temp: Optional[float], avg_house_temp: Optional[float],
-        outside_temp: float, reason: str
+        outside_temp: float, reason: str,
+        original_temperature: Optional[float] = None, weather_compensation: float = 0
     ) -> str:
         """Format debug text for display."""
         room_str = f"{room_temp:.1f}" if room_temp is not None else "N/A"
@@ -458,13 +464,20 @@ class SmartClimateCoordinator:
         if action == "off":
             return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
         else:
+            # Determine the mode
             if self.force_eco_mode or self.sleep_mode_active or self.schedule_mode == "eco":
                 mode = "Eco"
             elif self.schedule_mode == "boost":
                 mode = "Boost"
             else:
                 mode = "Comfort"
-            return f"ON | {mode} {temperature}°C | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
+            
+            # Add weather compensation info if applied
+            temp_str = f"{temperature}°C"
+            if weather_compensation > 0 and original_temperature is not None:
+                temp_str = f"{temperature}°C (base:{original_temperature}°C +{weather_compensation:.1f}°C)"
+                
+            return f"ON | {mode} {temp_str} | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
     
     async def enable_smart_control(self, enable: bool) -> None:
         """Enable or disable smart control."""
