@@ -50,29 +50,28 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
-        # Track if we're in the middle of an update
-        self._updating = False
+        # Store the current value to prevent snap-back
+        self._current_value = None
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         await super().async_added_to_hass()
         
-        # Listen for coordinator state updates
-        self.hass.bus.async_listen(
-            f"{DOMAIN}_state_updated",
-            self._handle_coordinator_update
-        )
-
-    def _handle_coordinator_update(self, event):
-        """Handle coordinator state updates."""
-        if event.data.get("entry_id") == self.coordinator.entry.entry_id:
-            if not self._updating:
-                self.async_write_ha_state()
+        # Initialize current value from coordinator
+        if self._temp_type == "comfort":
+            self._current_value = self.coordinator.comfort_temp
+        elif self._temp_type == "eco":
+            self._current_value = self.coordinator.eco_temp
+        elif self._temp_type == "boost":
+            self._current_value = self.coordinator.boost_temp
 
     @property
     def native_value(self) -> float:
         """Return the current value."""
-        # Always return the coordinator's current value
+        # Return our stored value if we have it, otherwise get from coordinator
+        if self._current_value is not None:
+            return self._current_value
+            
         if self._temp_type == "comfort":
             return self.coordinator.comfort_temp
         elif self._temp_type == "eco":
@@ -83,25 +82,20 @@ class SmartClimateTemperatureNumber(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value via dashboard slider or service call."""
-        if self._updating:
-            return
-            
-        self._updating = True
-        
+        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
+
+        # Store the new value immediately to prevent snap-back
+        self._current_value = value
+
+        # Update coordinator values
+        if self._temp_type == "comfort":
+            self.coordinator.comfort_temp = value
+        elif self._temp_type == "eco":
+            self.coordinator.eco_temp = value
+        elif self._temp_type == "boost":
+            self.coordinator.boost_temp = value
+
         try:
-            _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
-
-            # Update coordinator values immediately
-            if self._temp_type == "comfort":
-                self.coordinator.comfort_temp = value
-            elif self._temp_type == "eco":
-                self.coordinator.eco_temp = value
-            elif self._temp_type == "boost":
-                self.coordinator.boost_temp = value
-
-            # Force Home Assistant to update the state immediately
-            self.async_write_ha_state()
-
             # Save to storage
             await self.coordinator.store.async_save({
                 "comfort_temp": self.coordinator.comfort_temp,
@@ -110,15 +104,13 @@ class SmartClimateTemperatureNumber(NumberEntity):
                 "last_target": self.coordinator.target_temperature,
             })
 
-            # Trigger coordinator update (but don't wait for it to complete)
-            self.hass.async_create_task(self.coordinator.async_update())
+            # Trigger coordinator update
+            await self.coordinator.async_update()
             
             _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
             
         except Exception as e:
             _LOGGER.error(f"Failed to update {self._temp_type} temperature: {e}")
-        finally:
-            self._updating = False
 
     @property
     def available(self) -> bool:
@@ -128,7 +120,16 @@ class SmartClimateTemperatureNumber(NumberEntity):
     @property
     def extra_state_attributes(self):
         """Return extra state attributes."""
+        coordinator_value = None
+        if self._temp_type == "comfort":
+            coordinator_value = self.coordinator.comfort_temp
+        elif self._temp_type == "eco":
+            coordinator_value = self.coordinator.eco_temp
+        elif self._temp_type == "boost":
+            coordinator_value = self.coordinator.boost_temp
+            
         return {
             "temp_type": self._temp_type,
-            "updating": self._updating,
+            "current_value": self._current_value,
+            "coordinator_value": coordinator_value,
         }
