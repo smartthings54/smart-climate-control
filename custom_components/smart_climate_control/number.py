@@ -50,15 +50,13 @@ class SmartClimateTemperatureNumber(NumberEntity):
             "model": "Smart Climate Controller",
         }
         self._attr_icon = "mdi:thermometer"
-        # Store local value to prevent snap-back
-        self._local_value = None
+        # Track if we're in the middle of an update
+        self._updating = False
 
     @property
     def native_value(self) -> float:
         """Return the current value."""
-        if self._local_value is not None:
-            return self._local_value
-
+        # Always return the coordinator's current value
         if self._temp_type == "comfort":
             return self.coordinator.comfort_temp
         elif self._temp_type == "eco":
@@ -69,47 +67,39 @@ class SmartClimateTemperatureNumber(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value via dashboard slider or service call."""
-        _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
-
-        # Hold local value until coordinator confirms update
-        self._local_value = value
-        self.async_write_ha_state()
-
-        # Update coordinator values
-        if self._temp_type == "comfort":
-            self.coordinator.comfort_temp = value
-        elif self._temp_type == "eco":
-            self.coordinator.eco_temp = value
-        elif self._temp_type == "boost":
-            self.coordinator.boost_temp = value
-
-        # Save to storage
+        if self._updating:
+            return
+            
+        self._updating = True
+        
         try:
+            _LOGGER.debug(f"Setting {self._temp_type} temperature to {value}°C")
+
+            # Update coordinator values immediately
+            if self._temp_type == "comfort":
+                self.coordinator.comfort_temp = value
+            elif self._temp_type == "eco":
+                self.coordinator.eco_temp = value
+            elif self._temp_type == "boost":
+                self.coordinator.boost_temp = value
+
+            # Save to storage
             await self.coordinator.store.async_save({
                 "comfort_temp": self.coordinator.comfort_temp,
                 "eco_temp": self.coordinator.eco_temp,
                 "boost_temp": self.coordinator.boost_temp,
                 "last_target": self.coordinator.target_temperature,
             })
+
+            # Trigger coordinator update (but don't wait for it to complete)
+            self.hass.async_create_task(self.coordinator.async_update())
+            
+            _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
+            
         except Exception as e:
-            _LOGGER.error(f"Failed to save to storage: {e}")
-
-        # Ask coordinator to update
-        try:
-            await self.coordinator.async_update()
-        except Exception as e:
-            _LOGGER.error(f"Failed to update coordinator: {e}")
-
-        # Once coordinator is in sync, clear local value
-        self._local_value = None
-        self.async_write_ha_state()
-
-        _LOGGER.debug(f"Temperature {self._temp_type} updated to {value}°C successfully")
-
-    async def async_update(self) -> None:
-        """Update the entity."""
-        if self._local_value is None:
-            self.async_write_ha_state()
+            _LOGGER.error(f"Failed to update {self._temp_type} temperature: {e}")
+        finally:
+            self._updating = False
 
     @property
     def available(self) -> bool:
@@ -121,6 +111,5 @@ class SmartClimateTemperatureNumber(NumberEntity):
         """Return extra state attributes."""
         return {
             "temp_type": self._temp_type,
-            "coordinator_value": getattr(self.coordinator, f"{self._temp_type}_temp"),
-            "local_value": self._local_value,
+            "updating": self._updating,
         }
