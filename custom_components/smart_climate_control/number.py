@@ -53,6 +53,22 @@ class SmartClimateTemperatureNumber(NumberEntity):
         # Track if we're in the middle of an update
         self._updating = False
 
+    async def async_added_to_hass(self):
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        
+        # Listen for coordinator state updates
+        self.hass.bus.async_listen(
+            f"{DOMAIN}_state_updated",
+            self._handle_coordinator_update
+        )
+
+    def _handle_coordinator_update(self, event):
+        """Handle coordinator state updates."""
+        if event.data.get("entry_id") == self.coordinator.entry.entry_id:
+            if not self._updating:
+                self.async_write_ha_state()
+
     @property
     def native_value(self) -> float:
         """Return the current value."""
@@ -82,6 +98,9 @@ class SmartClimateTemperatureNumber(NumberEntity):
                 self.coordinator.eco_temp = value
             elif self._temp_type == "boost":
                 self.coordinator.boost_temp = value
+
+            # Force Home Assistant to update the state immediately
+            self.async_write_ha_state()
 
             # Save to storage
             await self.coordinator.store.async_save({
