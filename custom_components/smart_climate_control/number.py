@@ -95,6 +95,9 @@ class SmartClimateTemperatureNumber(NumberEntity):
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
 
+        # Force Home Assistant to update the state immediately
+        self.async_write_ha_state()
+
         try:
             # Save to storage
             await self.coordinator.store.async_save({
