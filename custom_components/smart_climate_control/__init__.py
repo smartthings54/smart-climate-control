@@ -159,7 +159,10 @@ class SmartClimateCoordinator:
             self.comfort_temp = stored_data.get("comfort_temp", self.comfort_temp)
             self.eco_temp = stored_data.get("eco_temp", self.eco_temp)
             self.boost_temp = stored_data.get("boost_temp", self.boost_temp)
+            # IMPORTANT: Restore the smart_control_enabled state
             self.smart_control_enabled = stored_data.get("smart_control_enabled", True)
+            
+        _LOGGER.info(f"Smart Climate Control initialized - enabled: {self.smart_control_enabled}")
     
     async def async_update(self, now=None) -> None:
         """Update climate control logic."""
@@ -446,10 +449,12 @@ class SmartClimateCoordinator:
     
     async def _release_control(self) -> None:
         """Release control back to manual operation."""
-        _LOGGER.info(f"Smart climate control disabled - releasing control of {self.heat_pump_entity_id}")
+        _LOGGER.info(f"Smart climate control releasing control of {self.heat_pump_entity_id}")
         self.smart_control_active = False
         self.last_sent_action = None
         self.last_sent_temperature = None
+        self.current_action = "off"
+        self.debug_text = "Smart control disabled"
     
     def _format_debug_text(
         self, action: str, temperature: Optional[float],
@@ -488,15 +493,20 @@ class SmartClimateCoordinator:
     
     async def enable_smart_control(self, enable: bool) -> None:
         """Enable or disable smart control."""
+        _LOGGER.info(f"Smart control {'enabled' if enable else 'disabled'} via coordinator")
         self.smart_control_enabled = enable
         
-        # Save state
+        # Save state immediately
         await self.store.async_save({
             "comfort_temp": self.comfort_temp,
             "eco_temp": self.eco_temp,
             "boost_temp": self.boost_temp,
             "smart_control_enabled": self.smart_control_enabled,
         })
+        
+        # If disabling, make sure we release control
+        if not enable:
+            await self._release_control()
         
         await self.async_update()
     
@@ -529,4 +539,5 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
