@@ -36,13 +36,14 @@ class SmartClimateBaseSensor(SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, config_entry, sensor_type):
+    def __init__(self, coordinator, config_entry, sensor_type, name):
         """Initialize the sensor."""
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}"
+        self._attr_name = name
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": f"Smart Control for {config_entry.data.get('name', 'Heat Pump')}",
+            "name": config_entry.data.get("name", "Smart Climate Control"),
             "manufacturer": "Custom",
             "model": "Smart Climate Controller",
         }
@@ -53,8 +54,7 @@ class SmartClimateStatusSensor(SmartClimateBaseSensor):
 
     def __init__(self, coordinator, config_entry):
         """Initialize the status sensor."""
-        super().__init__(coordinator, config_entry, "status")
-        self._attr_name = "Smart Control Status"
+        super().__init__(coordinator, config_entry, "status", "Status")
         self._attr_icon = "mdi:information-outline"
 
     @property
@@ -83,8 +83,7 @@ class SmartClimateModeSensor(SmartClimateBaseSensor):
     
     def __init__(self, coordinator, config_entry):
         """Initialize the mode sensor."""
-        super().__init__(coordinator, config_entry, "mode")
-        self._attr_name = "Smart Control Mode"
+        super().__init__(coordinator, config_entry, "mode", "Mode")
         self._attr_icon = "mdi:home-thermometer"
     
     @property
@@ -117,8 +116,7 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
 
     def __init__(self, coordinator, config_entry):
         """Initialize the target sensor."""
-        super().__init__(coordinator, config_entry, "target_temp")
-        self._attr_name = "Smart Control Target"
+        super().__init__(coordinator, config_entry, "target_temp", "Target")
         self._attr_icon = "mdi:thermometer-plus"
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -148,8 +146,7 @@ class SmartClimateControlledEntitySensor(SmartClimateBaseSensor):
 
     def __init__(self, coordinator, config_entry):
         """Initialize the controlled entity sensor."""
-        super().__init__(coordinator, config_entry, "controlled_entity")
-        self._attr_name = "Controlled Heat Pump"
+        super().__init__(coordinator, config_entry, "controlled_entity", "Control")
         self._attr_icon = "mdi:thermostat"
 
     @property
