@@ -31,13 +31,14 @@ class SmartClimateBaseSwitch(SwitchEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, config_entry, switch_type):
+    def __init__(self, coordinator, config_entry, switch_type, name):
         """Initialize the switch."""
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_{switch_type}"
+        self._attr_name = name
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": f"Smart Control for {config_entry.data.get('name', 'Heat Pump')}",
+            "name": config_entry.data.get("name", "Smart Climate Control"),
             "manufacturer": "Custom",
             "model": "Smart Climate Controller",
         }
@@ -48,8 +49,7 @@ class SmartClimateEnableSwitch(SmartClimateBaseSwitch):
 
     def __init__(self, coordinator, config_entry):
         """Initialize the enable switch."""
-        super().__init__(coordinator, config_entry, "enable")
-        self._attr_name = "Smart Climate Control"
+        super().__init__(coordinator, config_entry, "enable", "Climate Management")
         self._attr_icon = "mdi:robot"
 
     @property
@@ -82,8 +82,7 @@ class SmartClimateOverrideSwitch(SmartClimateBaseSwitch):
 
     def __init__(self, coordinator, config_entry):
         """Initialize the override switch."""
-        super().__init__(coordinator, config_entry, "override")
-        self._attr_name = "Manual Override (Force Comfort)"
+        super().__init__(coordinator, config_entry, "override", "Manual Override")
         self._attr_icon = "mdi:account-check"
 
     @property
@@ -112,8 +111,7 @@ class SmartClimateForceEcoSwitch(SmartClimateBaseSwitch):
 
     def __init__(self, coordinator, config_entry):
         """Initialize the force eco switch."""
-        super().__init__(coordinator, config_entry, "force_eco")
-        self._attr_name = "Force Eco Mode"
+        super().__init__(coordinator, config_entry, "force_eco", "Force Eco Mode")
         self._attr_icon = "mdi:leaf"
 
     @property
