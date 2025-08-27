@@ -450,6 +450,18 @@ class SmartClimateCoordinator:
     async def _release_control(self) -> None:
         """Release control back to manual operation."""
         _LOGGER.info(f"Smart climate control releasing control of {self.heat_pump_entity_id}")
+        
+        # Actually turn off the heat pump when releasing control
+        heat_pump_state = self.hass.states.get(self.heat_pump_entity_id)
+        if heat_pump_state and heat_pump_state.state != "off":
+            _LOGGER.info(f"Turning off heat pump {self.heat_pump_entity_id} as smart control is disabled")
+            await self.hass.services.async_call(
+                "climate",
+                "turn_off",
+                {"entity_id": self.heat_pump_entity_id},
+                blocking=False,
+            )
+        
         self.smart_control_active = False
         self.last_sent_action = None
         self.last_sent_temperature = None
@@ -539,5 +551,6 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
