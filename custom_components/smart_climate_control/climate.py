@@ -63,20 +63,33 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
         if (last_state := await self.async_get_last_state()) is not None:
             if last_state.state in [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]:
                 self._attr_hvac_mode = last_state.state
+                # IMPORTANT: Also update coordinator state based on restored climate state
+                if last_state.state == HVACMode.OFF:
+                    self.coordinator.smart_control_enabled = False
+                else:
+                    self.coordinator.smart_control_enabled = True
+                    if last_state.state == HVACMode.HEAT:
+                        self.coordinator.override_mode = True
+                    else:
+                        self.coordinator.override_mode = False
+                        
             if (temp := last_state.attributes.get(ATTR_TEMPERATURE)) is not None:
                 self._attr_target_temperature = float(temp)
 
     @property
     def hvac_mode(self) -> HVACMode:
         """Return current operation mode."""
-        if not self.coordinator.enabled:
+        if not self.coordinator.smart_control_enabled:
             return HVACMode.OFF
-        return HVACMode.AUTO if self._attr_hvac_mode == HVACMode.AUTO else self._attr_hvac_mode
+        elif self.coordinator.override_mode:
+            return HVACMode.HEAT
+        else:
+            return HVACMode.AUTO
 
     @property
     def hvac_action(self) -> HVACAction:
         """Return the current running hvac operation."""
-        if not self.coordinator.enabled or self.coordinator.current_action == "off":
+        if not self.coordinator.smart_control_enabled or self.coordinator.current_action == "off":
             return HVACAction.OFF
         return HVACAction.HEATING
 
@@ -96,9 +109,7 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        if self.coordinator.target_temperature:
-            return self.coordinator.target_temperature
-        return self.coordinator.comfort_temp
+        return self.coordinator._determine_base_temperature()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -112,11 +123,14 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
             "comfort_temp": self.coordinator.comfort_temp,
             "eco_temp": self.coordinator.eco_temp,
             "boost_temp": self.coordinator.boost_temp,
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
         }
 
     def _get_active_mode(self) -> str:
         """Get the active temperature mode."""
-        if self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
+        if not self.coordinator.smart_control_enabled:
+            return "disabled"
+        elif self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
             return "eco"
         elif self.coordinator.override_mode:
             return "comfort"
@@ -134,31 +148,45 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
                 self.coordinator.boost_temp = temperature
             else:
                 self.coordinator.comfort_temp = temperature
+            
+            # Save to storage
+            await self.coordinator.store.async_save({
+                "comfort_temp": self.coordinator.comfort_temp,
+                "eco_temp": self.coordinator.eco_temp,
+                "boost_temp": self.coordinator.boost_temp,
+                "smart_control_enabled": self.coordinator.smart_control_enabled,
+            })
+            
             await self.coordinator.async_update()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-            """Set new target hvac mode."""
-            self._attr_hvac_mode = hvac_mode
+        """Set new target hvac mode."""
+        _LOGGER.info(f"Climate entity: Setting HVAC mode to {hvac_mode}")
+        self._attr_hvac_mode = hvac_mode
+        
+        if hvac_mode == HVACMode.OFF:
+            # FIXED: Properly disable smart control through coordinator
+            await self.coordinator.enable_smart_control(False)
+        else:
+            # FIXED: Enable smart control through coordinator
+            await self.coordinator.enable_smart_control(True)
             
-            if hvac_mode == HVACMode.OFF:
-                self.coordinator.enabled = False
-            else:
-                self.coordinator.enabled = True
-                # Remember the last active mode (HEAT or AUTO)
-                if hvac_mode in [HVACMode.HEAT, HVACMode.AUTO]:
-                    self._attr_last_active_mode = hvac_mode
-                
+            # Remember the last active mode (HEAT or AUTO)
+            if hvac_mode in [HVACMode.HEAT, HVACMode.AUTO]:
+                self._attr_last_active_mode = hvac_mode
+            
+            # Set override mode based on HVAC mode
             if hvac_mode == HVACMode.HEAT:
                 self.coordinator.override_mode = True
             else:
                 self.coordinator.override_mode = False
                 
-            await self.coordinator.async_update()
+        await self.coordinator.async_update()
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
-        # Use the last active mode, default to HEAT
-        last_mode = getattr(self, '_attr_last_active_mode', HVACMode.HEAT)
+        # Use the last active mode, default to AUTO
+        last_mode = getattr(self, '_attr_last_active_mode', HVACMode.AUTO)
         await self.async_set_hvac_mode(last_mode)
 
     async def async_turn_off(self) -> None:
