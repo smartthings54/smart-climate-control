@@ -109,6 +109,9 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
+        if not self.coordinator.smart_control_enabled:
+            # Return the stored target temperature when disabled, not None
+            return self._attr_target_temperature
         return self.coordinator._determine_base_temperature()
 
     @property
