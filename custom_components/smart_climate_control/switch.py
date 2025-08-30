@@ -17,10 +17,11 @@ async def async_setup_entry(
     """Set up Smart Climate Control switches."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
+    # Order: Force Eco, Manual Override, Climate Management (logical control order)
     entities = [
-        SmartClimateEnableSwitch(coordinator, config_entry),
-        SmartClimateOverrideSwitch(coordinator, config_entry),
         SmartClimateForceEcoSwitch(coordinator, config_entry),
+        SmartClimateOverrideSwitch(coordinator, config_entry),
+        SmartClimateEnableSwitch(coordinator, config_entry),
     ]
     
     async_add_entities(entities)
