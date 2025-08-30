@@ -48,6 +48,11 @@ class SmartClimateBaseSensor(SensorEntity):
             "model": "Smart Climate Controller",
         }
 
+    @property
+    def available(self):
+        """Sensors are always available - we want to show state even when disabled."""
+        return True
+
 
 class SmartClimateStatusSensor(SmartClimateBaseSensor):
     """Status sensor showing current smart control logic."""
@@ -104,6 +109,7 @@ class SmartClimateModeSensor(SmartClimateBaseSensor):
     def extra_state_attributes(self):
         """Return mode details."""
         return {
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
             "force_eco": self.coordinator.force_eco_mode,
             "sleep_active": self.coordinator.sleep_mode_active,
             "override_active": self.coordinator.override_mode,
@@ -123,11 +129,8 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
 
     @property
     def state(self):
-        """Return the target temperature that smart control is using."""
-        if not self.coordinator.smart_control_enabled:
-            return None
-            
-        # Return the temperature we're actually targeting
+        """Return the target temperature that smart control would use."""
+        # Always return what the target would be, even if disabled
         base_temp = self.coordinator._determine_base_temperature()
         return base_temp
 
@@ -135,10 +138,23 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
     def extra_state_attributes(self):
         """Return temperature details."""
         return {
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
             "comfort_temp": self.coordinator.comfort_temp,
             "eco_temp": self.coordinator.eco_temp,
             "boost_temp": self.coordinator.boost_temp,
+            "active_mode": self._get_active_mode(),
         }
+    
+    def _get_active_mode(self) -> str:
+        """Get the active temperature mode."""
+        if not self.coordinator.smart_control_enabled:
+            return "disabled"
+        elif self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
+            return "eco"
+        elif self.coordinator.override_mode:
+            return "comfort"
+        else:
+            return self.coordinator.schedule_mode
 
 
 class SmartClimateControlledEntitySensor(SmartClimateBaseSensor):
@@ -164,5 +180,6 @@ class SmartClimateControlledEntitySensor(SmartClimateBaseSensor):
             "current_action": heat_pump_state.get("hvac_action"),
             "current_temperature": heat_pump_state.get("temperature"),
             "room_temperature": heat_pump_state.get("current_temperature"),
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
             "smart_control_active": self.coordinator.smart_control_active,
         }
