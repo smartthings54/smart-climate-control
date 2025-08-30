@@ -49,8 +49,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Remove Platform.CLIMATE - we don't create a climate entity anymore
-PLATFORMS = [Platform.SENSOR, Platform.SWITCH, Platform.NUMBER]
+# Platform loading order - this controls the order entities appear in the device page
+PLATFORMS = [Platform.NUMBER, Platform.SWITCH, Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Climate Control from a config entry."""
@@ -65,8 +65,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "entry": entry,
     }
     
-    # Set up platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Set up platforms in specific order to control entity ordering
+    # Load each platform sequentially with a small delay
+    for platform in PLATFORMS:
+        await hass.config_entries.async_forward_entry_setup(entry, platform)
+        # Small delay to ensure entities are registered in order
+        await asyncio.sleep(0.1)
     
     # Register services
     await async_setup_services(hass)
@@ -551,6 +555,3 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
-
-
-
