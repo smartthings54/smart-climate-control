@@ -43,6 +43,11 @@ class SmartClimateBaseSwitch(SwitchEntity):
             "model": "Smart Climate Controller",
         }
 
+    @property
+    def available(self):
+        """Entity is always available - we want to show state even when disabled."""
+        return True
+
 
 class SmartClimateEnableSwitch(SmartClimateBaseSwitch):
     """Master enable switch for Smart Climate Control."""
@@ -92,8 +97,26 @@ class SmartClimateOverrideSwitch(SmartClimateBaseSwitch):
 
     @property
     def available(self):
-        """Only available when smart control is enabled."""
-        return self.coordinator.smart_control_enabled
+        """Always available - shows current state even when smart control disabled."""
+        return True
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra state attributes including why it might not be active."""
+        attrs = {
+            "override_mode": self.coordinator.override_mode,
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
+        }
+        
+        # Add helpful info about why override might not be effective
+        if self.coordinator.override_mode and not self.coordinator.smart_control_enabled:
+            attrs["note"] = "Override set but smart control is disabled"
+        elif not self.coordinator.override_mode:
+            attrs["note"] = "Override not active"
+        else:
+            attrs["note"] = "Override active"
+            
+        return attrs
 
     async def async_turn_on(self, **kwargs):
         """Enable override mode."""
@@ -121,8 +144,26 @@ class SmartClimateForceEcoSwitch(SmartClimateBaseSwitch):
 
     @property
     def available(self):
-        """Only available when smart control is enabled."""
-        return self.coordinator.smart_control_enabled
+        """Always available - shows current state even when smart control disabled."""
+        return True
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra state attributes including why it might not be active."""
+        attrs = {
+            "force_eco_mode": self.coordinator.force_eco_mode,
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
+        }
+        
+        # Add helpful info about why force eco might not be effective
+        if self.coordinator.force_eco_mode and not self.coordinator.smart_control_enabled:
+            attrs["note"] = "Force eco set but smart control is disabled"
+        elif not self.coordinator.force_eco_mode:
+            attrs["note"] = "Force eco not active"
+        else:
+            attrs["note"] = "Force eco active"
+            
+        return attrs
 
     async def async_turn_on(self, **kwargs):
         """Enable force eco mode."""
