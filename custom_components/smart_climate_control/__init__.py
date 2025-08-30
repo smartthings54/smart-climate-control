@@ -49,7 +49,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Platform loading order - this controls the order entities appear in the device page
+# Try different platform order for entity ordering
 PLATFORMS = [Platform.NUMBER, Platform.SWITCH, Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -65,12 +65,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "entry": entry,
     }
     
-    # Set up platforms in specific order to control entity ordering
-    # Load each platform sequentially with a small delay
-    for platform in PLATFORMS:
-        await hass.config_entries.async_forward_entry_setup(entry, platform)
-        # Small delay to ensure entities are registered in order
-        await asyncio.sleep(0.1)
+    # Set up platforms - back to the original method for safety
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     # Register services
     await async_setup_services(hass)
