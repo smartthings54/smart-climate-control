@@ -18,10 +18,11 @@ async def async_setup_entry(
     """Set up Smart Climate Control number entities."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
+    # Order: Boost, Comfort, Eco (logical temperature order from high to low)
     entities = [
+        SmartClimateTemperatureNumber(coordinator, config_entry, "boost", "Boost Temperature", DEFAULT_BOOST_TEMP),
         SmartClimateTemperatureNumber(coordinator, config_entry, "comfort", "Comfort Temperature", DEFAULT_COMFORT_TEMP),
         SmartClimateTemperatureNumber(coordinator, config_entry, "eco", "Eco Temperature", DEFAULT_ECO_TEMP),
-        SmartClimateTemperatureNumber(coordinator, config_entry, "boost", "Boost Temperature", DEFAULT_BOOST_TEMP),
     ]
     
     async_add_entities(entities)
