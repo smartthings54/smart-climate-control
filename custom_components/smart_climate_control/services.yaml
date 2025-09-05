@@ -10,6 +10,18 @@ force_eco:
       selector:
         boolean:
 
+force_comfort:
+  name: Force Comfort Mode
+  description: Force the system into comfort mode
+  fields:
+    enable:
+      name: Enable
+      description: Enable or disable force comfort mode
+      required: false
+      default: true
+      selector:
+        boolean:
+
 reset_temperatures:
   name: Reset Temperatures
   description: Reset all temperature settings to defaults
