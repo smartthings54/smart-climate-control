@@ -17,8 +17,9 @@ async def async_setup_entry(
     """Set up Smart Climate Control switches."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
-    # Order: Force Eco, Manual Override, Climate Management (logical control order)
+    # Order: Force Comfort, Force Eco, Manual Override, Climate Management (logical control order)
     entities = [
+        SmartClimateForceComfortSwitch(coordinator, config_entry),
         SmartClimateForceEcoSwitch(coordinator, config_entry),
         SmartClimateOverrideSwitch(coordinator, config_entry),
         SmartClimateEnableSwitch(coordinator, config_entry),
@@ -122,6 +123,9 @@ class SmartClimateOverrideSwitch(SmartClimateBaseSwitch):
     async def async_turn_on(self, **kwargs):
         """Enable override mode."""
         self.coordinator.override_mode = True
+        # When override is enabled, disable force modes
+        self.coordinator.force_eco_mode = False
+        self.coordinator.force_comfort_mode = False
         await self.coordinator.async_update()
 
     async def async_turn_off(self, **kwargs):
@@ -169,9 +173,62 @@ class SmartClimateForceEcoSwitch(SmartClimateBaseSwitch):
     async def async_turn_on(self, **kwargs):
         """Enable force eco mode."""
         self.coordinator.force_eco_mode = True
+        # When force eco is enabled, disable other force modes and override
+        self.coordinator.force_comfort_mode = False
+        self.coordinator.override_mode = False
         await self.coordinator.async_update()
 
     async def async_turn_off(self, **kwargs):
         """Disable force eco mode."""
         self.coordinator.force_eco_mode = False
+        await self.coordinator.async_update()
+
+
+class SmartClimateForceComfortSwitch(SmartClimateBaseSwitch):
+    """Force comfort switch."""
+
+    def __init__(self, coordinator, config_entry):
+        """Initialize the force comfort switch."""
+        super().__init__(coordinator, config_entry, "force_comfort", "Force Comfort Mode")
+        self._attr_icon = "mdi:home-thermometer-outline"
+
+    @property
+    def is_on(self):
+        """Return true if force comfort is active."""
+        return self.coordinator.force_comfort_mode
+
+    @property
+    def available(self):
+        """Always available - shows current state even when smart control disabled."""
+        return True
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra state attributes including why it might not be active."""
+        attrs = {
+            "force_comfort_mode": self.coordinator.force_comfort_mode,
+            "smart_control_enabled": self.coordinator.smart_control_enabled,
+        }
+        
+        # Add helpful info about why force comfort might not be effective
+        if self.coordinator.force_comfort_mode and not self.coordinator.smart_control_enabled:
+            attrs["note"] = "Force comfort set but smart control is disabled"
+        elif not self.coordinator.force_comfort_mode:
+            attrs["note"] = "Force comfort not active"
+        else:
+            attrs["note"] = "Force comfort active"
+            
+        return attrs
+
+    async def async_turn_on(self, **kwargs):
+        """Enable force comfort mode."""
+        self.coordinator.force_comfort_mode = True
+        # When force comfort is enabled, disable other force modes and override
+        self.coordinator.force_eco_mode = False
+        self.coordinator.override_mode = False
+        await self.coordinator.async_update()
+
+    async def async_turn_off(self, **kwargs):
+        """Disable force comfort mode."""
+        self.coordinator.force_comfort_mode = False
         await self.coordinator.async_update()
