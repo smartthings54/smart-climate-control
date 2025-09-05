@@ -100,6 +100,19 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         for entry_id in hass.data[DOMAIN]:
             coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
             coordinator.force_eco_mode = call.data.get("enable", True)
+            # If enabling force eco, disable force comfort
+            if coordinator.force_eco_mode:
+                coordinator.force_comfort_mode = False
+            await coordinator.async_update()
+    
+    async def handle_force_comfort(call: ServiceCall) -> None:
+        """Handle force comfort mode service."""
+        for entry_id in hass.data[DOMAIN]:
+            coordinator = hass.data[DOMAIN][entry_id]["coordinator"]
+            coordinator.force_comfort_mode = call.data.get("enable", True)
+            # If enabling force comfort, disable force eco
+            if coordinator.force_comfort_mode:
+                coordinator.force_eco_mode = False
             await coordinator.async_update()
     
     async def handle_reset_temperatures(call: ServiceCall) -> None:
@@ -109,6 +122,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             await coordinator.reset_temperatures()
     
     hass.services.async_register(DOMAIN, "force_eco", handle_force_eco)
+    hass.services.async_register(DOMAIN, "force_comfort", handle_force_comfort)
     hass.services.async_register(DOMAIN, "reset_temperatures", handle_reset_temperatures)
 
 class SmartClimateCoordinator:
@@ -128,6 +142,7 @@ class SmartClimateCoordinator:
         self.smart_control_enabled = True
         self.override_mode = False
         self.force_eco_mode = False
+        self.force_comfort_mode = False  # NEW: Add force comfort mode
         self.schedule_mode = "comfort"
         self.current_action = "off"
         self.last_avg_house_over_limit = False
@@ -342,7 +357,10 @@ class SmartClimateCoordinator:
  
     def _determine_base_temperature(self) -> float:
         """Determine the base target temperature."""
-        if self.force_eco_mode or self.sleep_mode_active:
+        # Force modes take highest priority
+        if self.force_comfort_mode:
+            return self.comfort_temp
+        elif self.force_eco_mode or self.sleep_mode_active:
             return self.eco_temp
         elif self.override_mode:
             return self.comfort_temp
@@ -481,11 +499,15 @@ class SmartClimateCoordinator:
         if action == "off":
             return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
         else:
-            # Determine the mode
-            if self.force_eco_mode or self.sleep_mode_active or self.schedule_mode == "eco":
-                mode = "Eco"
+            # Determine the mode - updated to include force comfort
+            if self.force_comfort_mode:
+                mode = "Force Comfort"
+            elif self.force_eco_mode or self.sleep_mode_active:
+                mode = "Force Eco" if self.force_eco_mode else "Sleep Eco"
             elif self.schedule_mode == "boost":
                 mode = "Boost"
+            elif self.schedule_mode == "eco":
+                mode = "Eco"
             else:
                 mode = "Comfort"
             
@@ -551,3 +573,4 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
