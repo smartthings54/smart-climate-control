@@ -25,7 +25,7 @@ async def async_setup_entry(
         SmartClimateStatusSensor(coordinator, config_entry),
         SmartClimateModeSensor(coordinator, config_entry),
         SmartClimateTargetSensor(coordinator, config_entry),
-        SmartClimateControlledEntitySensor(coordinator, config_entry),
+        # Removed SmartClimateControlledEntitySensor - not providing useful info
     ]
     
     async_add_entities(entities)
@@ -159,32 +159,3 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
             return "comfort"
         else:
             return self.coordinator.schedule_mode
-
-
-class SmartClimateControlledEntitySensor(SmartClimateBaseSensor):
-    """Sensor showing which entity is being controlled."""
-
-    def __init__(self, coordinator, config_entry):
-        """Initialize the controlled entity sensor."""
-        super().__init__(coordinator, config_entry, "controlled_entity", "Control")
-        self._attr_icon = "mdi:thermostat"
-
-    @property
-    def state(self):
-        """Return the controlled entity ID."""
-        return self.coordinator.heat_pump_entity_id
-
-    @property
-    def extra_state_attributes(self):
-        """Return controlled entity state."""
-        heat_pump_state = self.coordinator.current_heat_pump_state
-        return {
-            "entity_id": self.coordinator.heat_pump_entity_id,
-            "current_mode": heat_pump_state.get("hvac_mode"),
-            "current_action": heat_pump_state.get("hvac_action"),
-            "current_temperature": heat_pump_state.get("temperature"),
-            "room_temperature": heat_pump_state.get("current_temperature"),
-            "smart_control_enabled": self.coordinator.smart_control_enabled,
-            "smart_control_active": self.coordinator.smart_control_active,
-        }
-
