@@ -120,9 +120,8 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
         return {
             "status": self.coordinator.debug_text,
             "active_mode": self._get_active_mode(),
-            "force_comfort": self.coordinator.force_comfort_mode,
+            "force_comfort": self.coordinator.override_mode,
             "force_eco": self.coordinator.force_eco_mode,
-            "override": self.coordinator.override_mode,
             "sleep_active": self.coordinator.sleep_mode_active,
             "comfort_temp": self.coordinator.comfort_temp,
             "eco_temp": self.coordinator.eco_temp,
@@ -134,12 +133,10 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
         """Get the active temperature mode."""
         if not self.coordinator.smart_control_enabled:
             return "disabled"
-        elif self.coordinator.force_comfort_mode:
+        elif self.coordinator.override_mode:
             return "force_comfort"
         elif self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
             return "force_eco" if self.coordinator.force_eco_mode else "sleep_eco"
-        elif self.coordinator.override_mode:
-            return "comfort"
         else:
             return self.coordinator.schedule_mode
 
@@ -198,4 +195,5 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
         await self.async_set_hvac_mode(HVACMode.OFF)
+
 
