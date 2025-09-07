@@ -499,8 +499,8 @@ class SmartClimateCoordinator:
         if action == "off":
             return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
         else:
-            # Determine the mode - updated to include force comfort
-            if self.force_comfort_mode:
+            # Determine the mode
+            if self.override_mode:
                 mode = "Force Comfort"
             elif self.force_eco_mode or self.sleep_mode_active:
                 mode = "Force Eco" if self.force_eco_mode else "Sleep Eco"
@@ -573,4 +573,5 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
