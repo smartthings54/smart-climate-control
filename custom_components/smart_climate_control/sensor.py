@@ -97,12 +97,10 @@ class SmartClimateModeSensor(SmartClimateBaseSensor):
         if not self.coordinator.smart_control_enabled:
             return "Disabled"
             
-        if self.coordinator.force_comfort_mode:
-            return "Force Comfort"
-        elif self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
+        if self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
             return "Force Eco" if self.coordinator.force_eco_mode else "Sleep Eco"
         elif self.coordinator.override_mode:
-            return "Override (Comfort)"
+            return "Force Comfort"
         else:
             mode = self.coordinator.schedule_mode
             return mode.capitalize() if mode else "Unknown"
@@ -112,10 +110,9 @@ class SmartClimateModeSensor(SmartClimateBaseSensor):
         """Return mode details."""
         return {
             "smart_control_enabled": self.coordinator.smart_control_enabled,
-            "force_comfort": self.coordinator.force_comfort_mode,
+            "force_comfort": self.coordinator.override_mode,
             "force_eco": self.coordinator.force_eco_mode,
             "sleep_active": self.coordinator.sleep_mode_active,
-            "override_active": self.coordinator.override_mode,
             "schedule_mode": self.coordinator.schedule_mode,
         }
 
@@ -151,11 +148,9 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
         """Get the active temperature mode."""
         if not self.coordinator.smart_control_enabled:
             return "disabled"
-        elif self.coordinator.force_comfort_mode:
+        elif self.coordinator.override_mode:
             return "force_comfort"
         elif self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
             return "force_eco" if self.coordinator.force_eco_mode else "sleep_eco"
-        elif self.coordinator.override_mode:
-            return "comfort"
         else:
             return self.coordinator.schedule_mode
