@@ -177,32 +177,29 @@ class SmartClimateCoordinator:
     
     @property
     def deadband_below(self) -> float:
-        """Get current deadband below value."""
         return self._get_config_value(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
     
     @property
     def deadband_above(self) -> float:
-        """Get current deadband above value."""
         return self._get_config_value(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
     
     @property
     def max_house_temp(self) -> float:
-        """Get current max house temperature."""
         return self._get_config_value(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
     
     @property
     def weather_comp_factor(self) -> float:
-        """Get current weather compensation factor."""
         return self._get_config_value(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
     
-    @staticmethod
-    async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-        """Handle options update - trigger immediate update."""
-        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
-            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-            await coordinator.async_update()
+    # ADD THESE TWO:
+    @property
+    def max_comp_temp(self) -> float:
+        return self._get_config_value(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP)
     
-    # ... rest of your existing coordinator methods stay exactly the same ...
+    @property
+    def min_comp_temp(self) -> float:
+        return self._get_config_value(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP)
+    
         
     async def async_initialize(self) -> None:
         """Initialize the coordinator."""
@@ -611,6 +608,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
