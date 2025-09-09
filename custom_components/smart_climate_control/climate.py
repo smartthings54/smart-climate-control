@@ -127,6 +127,11 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
             "eco_temp": self.coordinator.eco_temp,
             "boost_temp": self.coordinator.boost_temp,
             "smart_control_enabled": self.coordinator.smart_control_enabled,
+            # ADD THESE LINES:
+            "deadband_below": self.coordinator.deadband_below,
+            "deadband_above": self.coordinator.deadband_above,
+            "max_house_temp": self.coordinator.max_house_temp,
+            "weather_comp_factor": self.coordinator.weather_comp_factor,
         }
 
     def _get_active_mode(self) -> str:
@@ -195,5 +200,6 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
         await self.async_set_hvac_mode(HVACMode.OFF)
+
 
 
