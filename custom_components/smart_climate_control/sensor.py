@@ -71,7 +71,7 @@ class SmartClimateStatusSensor(SmartClimateBaseSensor):
 
     @property
     def extra_state_attributes(self):
-        """Return extra attributes."""
+        """Return extra attributes including deadband settings."""
         heat_pump_state = self.coordinator.current_heat_pump_state
         return {
             "smart_control_enabled": self.coordinator.smart_control_enabled,
@@ -80,6 +80,13 @@ class SmartClimateStatusSensor(SmartClimateBaseSensor):
             "heat_pump_action": heat_pump_state.get("hvac_action"),
             "heat_pump_temperature": heat_pump_state.get("temperature"),
             "heat_pump_current_temp": heat_pump_state.get("current_temperature"),
+            # ADD DEADBAND ATTRIBUTES HERE:
+            "deadband_below": self.coordinator.deadband_below,
+            "deadband_above": self.coordinator.deadband_above,
+            "max_house_temp": self.coordinator.max_house_temp,
+            "weather_comp_factor": self.coordinator.weather_comp_factor,
+            "max_comp_temp": self.coordinator.max_comp_temp,
+            "min_comp_temp": self.coordinator.min_comp_temp,
         }
 
 
@@ -154,3 +161,4 @@ class SmartClimateTargetSensor(SmartClimateBaseSensor):
             return "force_eco" if self.coordinator.force_eco_mode else "sleep_eco"
         else:
             return self.coordinator.schedule_mode
+
