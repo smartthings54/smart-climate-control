@@ -200,7 +200,13 @@ class SmartClimateCoordinator:
     def min_comp_temp(self) -> float:
         return self._get_config_value(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP)
     
-        
+    @staticmethod
+    async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Handle options update - trigger immediate update."""
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            await coordinator.async_update()
+    
     async def async_initialize(self) -> None:
         """Initialize the coordinator."""
         # Load stored data
@@ -608,6 +614,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
