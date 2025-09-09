@@ -142,7 +142,7 @@ class SmartClimateCoordinator:
         self.smart_control_enabled = True
         self.override_mode = False
         self.force_eco_mode = False
-        self.force_comfort_mode = False  # NEW: Add force comfort mode
+        self.force_comfort_mode = False
         self.schedule_mode = "comfort"
         self.current_action = "off"
         self.last_avg_house_over_limit = False
@@ -160,11 +160,49 @@ class SmartClimateCoordinator:
         self.eco_temp = self.config.get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
         self.boost_temp = self.config.get(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)
         
-        # Control parameters
-        self.deadband_below = self.config.get(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
-        self.deadband_above = self.config.get(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
-        self.max_house_temp = self.config.get(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
-        self.weather_comp_factor = self.config.get(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
+        # REMOVED: Control parameters (now properties)
+        # self.deadband_below = self.config.get(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
+        # self.deadband_above = self.config.get(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
+        # self.max_house_temp = self.config.get(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
+        # self.weather_comp_factor = self.config.get(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
+        
+        # Register options update listener for instant updates
+        self.entry.add_update_listener(self.async_options_updated)
+    
+    def _get_config_value(self, key: str, default: Any) -> Any:
+        """Get value from options (preferred) or config (fallback)."""
+        if key in self.entry.options:
+            return self.entry.options[key]
+        return self.config.get(key, default)
+    
+    @property
+    def deadband_below(self) -> float:
+        """Get current deadband below value."""
+        return self._get_config_value(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
+    
+    @property
+    def deadband_above(self) -> float:
+        """Get current deadband above value."""
+        return self._get_config_value(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
+    
+    @property
+    def max_house_temp(self) -> float:
+        """Get current max house temperature."""
+        return self._get_config_value(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
+    
+    @property
+    def weather_comp_factor(self) -> float:
+        """Get current weather compensation factor."""
+        return self._get_config_value(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
+    
+    @staticmethod
+    async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Handle options update - trigger immediate update."""
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            await coordinator.async_update()
+    
+    # ... rest of your existing coordinator methods stay exactly the same ...
         
     async def async_initialize(self) -> None:
         """Initialize the coordinator."""
@@ -573,5 +611,6 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
