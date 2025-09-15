@@ -218,6 +218,8 @@ content: >
 
 ```
 
+![Smart Climate Overview Card](docs/images/smart-climate-overview.png)
+
 ## 🔧 Services
 
 ### smart_climate_control.force_eco
@@ -387,6 +389,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Door monitoring
 
 - HACS compatibility
-
-
-
+- 
