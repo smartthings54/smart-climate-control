@@ -127,9 +127,9 @@ cards:
 ```yaml
 type: entities
 entities:
-  - entity: number.smart_climate_boost_temp
-  - entity: number.smart_climate_comfort_temp
-  - entity: number.smart_climate_eco_temp
+  - entity: number.smart_climate_boost_temperature
+  - entity: number.smart_climate_comfort_temperature
+  - entity: number.smart_climate_eco_temperature
 ```
 
 ## 🔧 Services
@@ -301,4 +301,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Door monitoring
 
 - HACS compatibility
+
 
