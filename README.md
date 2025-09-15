@@ -105,9 +105,9 @@ A sophisticated climate control system for Home Assistant that provides intellig
 type: entities
 entities:
   - entity: climate.smart_climate_control
-  - entity: sensor.smart_climate_control_status
-  - entity: sensor.smart_climate_control_mode
-  - entity: sensor.smart_climate_control_target
+  - entity: sensor.smart_climate_status
+  - entity: sensor.smart_climate_mode
+  - entity: sensor.smart_climate_target
 ```
 
 ### Control Card
@@ -118,18 +118,18 @@ cards:
     entity: climate.smart_climate_control
   - type: entities
     entities:
-      - entity: switch.smart_climate_control_climate_management
-      - entity: switch.smart_climate_control_force_comfort_mode
-      - entity: switch.smart_climate_control_force_eco_mode
+      - entity: switch.smart_climate_climate_management
+      - entity: switch.smart_climate_force_comfort_mode
+      - entity: switch.smart_climate_force_eco_mode
 ```
 
 ### Temperature Settings Card
 ```yaml
 type: entities
 entities:
-  - entity: number.smart_climate_control_boost_temp
-  - entity: number.smart_climate_control_comfort_temp
-  - entity: number.smart_climate_control_eco_temp
+  - entity: number.smart_climate_boost_temp
+  - entity: number.smart_climate_comfort_temp
+  - entity: number.smart_climate_eco_temp
 ```
 
 ## 🔧 Services
@@ -171,7 +171,7 @@ automation:
     action:
       - service: switch.turn_off
         target:
-          entity_id: switch.smart_climate_control_force_eco_mode
+          entity_id: switch.smart_climate_force_eco_mode
 
   - alias: "Night Eco Mode"
     trigger:
@@ -180,7 +180,7 @@ automation:
     action:
       - service: switch.turn_on
         target:
-          entity_id: switch.smart_climate_control_force_eco_mode
+          entity_id: switch.smart_climate_force_eco_mode
 ```
 
 ### Example: Away Mode
@@ -195,7 +195,7 @@ automation:
     action:
       - service: switch.turn_off
         target:
-          entity_id: switch.smart_climate_control_climate_management
+          entity_id: switch.smart_climate_climate_management
 ```
 
 ### Example: Force Comfort When Cold Outside
@@ -222,10 +222,10 @@ automation:
     action:
       - service: switch.turn_off
         target:
-          entity_id: switch.smart_climate_control_force_comfort_mode
+          entity_id: switch.smart_climate_force_comfort_mode
       - service: switch.turn_off
         target:
-          entity_id: switch.smart_climate_control_force_eco_mode
+          entity_id: switch.smart_climate_force_eco_mode
 ```
 
 ## 🎯 How It Works
@@ -301,3 +301,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Door monitoring
 
 - HACS compatibility
+
