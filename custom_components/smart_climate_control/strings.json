@@ -8,7 +8,7 @@
           "name": "Name",
           "heat_pump": "Heat Pump Entity",
           "room_sensor": "Room Temperature Sensor",
-          "outside_sensor": "Outside Temperature Sensor",
+          "outside_sensor": "Outside Temperature Sensor (optional)",
           "average_sensor": "Average House Temperature Sensor (optional)",
           "door_sensor": "Door Sensor (optional)",
           "presence_tracker": "Presence Tracker (optional) - person/group/sensor/boolean"
@@ -64,4 +64,5 @@
     }
   }
 }
+
 
