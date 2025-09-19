@@ -104,7 +104,7 @@ A sophisticated climate control system for Home Assistant that provides intellig
 ```yaml
 type: entities
 entities:
-  - entity: climate.smart_climate_control
+  - entity: climate.YOUR_ENTITY
   - entity: sensor.smart_climate_status
   - entity: sensor.smart_climate_mode
   - entity: sensor.smart_climate_target
@@ -115,7 +115,7 @@ entities:
 type: vertical-stack
 cards:
   - type: thermostat
-    entity: climate.smart_climate_control
+    entity: climate.YOUR_ENTITY
   - type: entities
     entities:
       - entity: switch.smart_climate_climate_management
@@ -231,11 +231,11 @@ data:
   enable: true  # or false to disable
 ```
 
-### smart_climate_control.force_comfort
+### switch.smart_climate_force_comfort_mode
 Force the system into comfort mode.
 
 ```yaml
-service: smart_climate_control.force_comfort
+service: switch.smart_climate_force_comfort_mode
 data:
   enable: true  # or false to disable
 ```
@@ -277,7 +277,7 @@ automation:
   - alias: "Away Mode"
     trigger:
       - platform: state
-        entity_id: person.home_owner
+        entity_id: person.YOUR_ENTITY
         to: "not_home"
         for: "00:10:00"
     action:
@@ -295,7 +295,7 @@ automation:
         entity_id: sensor.outside_temperature
         below: -5
     action:
-      - service: smart_climate_control.force_comfort
+      - service: switch.smart_climate_force_comfort_mode
         data:
           enable: true
 ```
@@ -390,3 +390,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - HACS compatibility
 - 
+
