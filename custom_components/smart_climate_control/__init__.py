@@ -615,7 +615,7 @@ class SmartClimateCoordinator:
             outside_str = "N/A"
         
         if action == "off":
-            return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
+            return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_str} | {reason}"
         else:
             # Determine the mode
             if self.override_mode:
@@ -641,7 +641,7 @@ class SmartClimateCoordinator:
             elif "Too hot (" in reason:
                 clean_reason = "Too hot"
                 
-            return f"ON | {mode} {temp_str} | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {clean_reason}"
+            return f"ON | {mode} {temp_str} | R: {room_str}°C | H: {avg_str}°C | O: {outside_str} | {clean_reason}"
     
     async def enable_smart_control(self, enable: bool) -> None:
         """Enable or disable smart control."""
@@ -691,6 +691,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
