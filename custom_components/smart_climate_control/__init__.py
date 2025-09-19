@@ -17,6 +17,8 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.entity_platform import async_get_platforms
+from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
@@ -68,6 +70,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up platforms - back to the original method for safety
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
+    # Create device link to controlled climate entity
+    await _setup_device_links(hass, entry)
+    
     # Register services
     await async_setup_services(hass)
     
@@ -79,6 +84,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     
     return True
+
+async def _setup_device_links(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Set up device links to show controlled entities in device controls."""
+    device_reg = dr.async_get(hass)
+    entity_reg = er.async_get(hass)
+    
+    # Get our device
+    our_device = device_reg.async_get_device(
+        identifiers={(DOMAIN, entry.entry_id)}
+    )
+    
+    if not our_device:
+        _LOGGER.warning("Could not find Smart Climate Control device")
+        return
+    
+    # Get the controlled heat pump entity
+    heat_pump_entity_id = entry.data[CONF_HEAT_PUMP]
+    heat_pump_entity = entity_reg.async_get(heat_pump_entity_id)
+    
+    if not heat_pump_entity or not heat_pump_entity.device_id:
+        _LOGGER.warning(f"Could not find device for heat pump entity {heat_pump_entity_id}")
+        return
+    
+    # Get the heat pump device
+    heat_pump_device = device_reg.async_get(heat_pump_entity.device_id)
+    
+    if not heat_pump_device:
+        _LOGGER.warning(f"Could not find heat pump device")
+        return
+    
+    # Create a "via device" link by updating our device to show it controls the heat pump
+    device_reg.async_update_device(
+        our_device.id,
+        via_device_id=heat_pump_device.id,
+        suggested_area=heat_pump_device.area_id,  # Inherit the area from heat pump
+    )
+    
+    _LOGGER.info(f"Linked Smart Climate Control device to heat pump device: {heat_pump_device.name}")
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
@@ -160,12 +203,6 @@ class SmartClimateCoordinator:
         self.eco_temp = self.config.get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
         self.boost_temp = self.config.get(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)
         
-        # REMOVED: Control parameters (now properties)
-        # self.deadband_below = self.config.get(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
-        # self.deadband_above = self.config.get(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
-        # self.max_house_temp = self.config.get(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
-        # self.weather_comp_factor = self.config.get(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
-        
         # Register options update listener for instant updates
         self.entry.add_update_listener(self.async_options_updated)
     
@@ -191,7 +228,6 @@ class SmartClimateCoordinator:
     def weather_comp_factor(self) -> float:
         return self._get_config_value(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
     
-    # ADD THESE TWO:
     @property
     def max_comp_temp(self) -> float:
         return self._get_config_value(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP)
@@ -614,8 +650,3 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
-
-
-
-
-
