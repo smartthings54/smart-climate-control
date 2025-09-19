@@ -62,8 +62,8 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not self.hass.states.get(user_input[CONF_ROOM_SENSOR]):
                 errors[CONF_ROOM_SENSOR] = "entity_not_found"
             
-            # Validate outside sensor exists
-            if not self.hass.states.get(user_input[CONF_OUTSIDE_SENSOR]):
+            # Validate outside sensor exists (if provided)
+            if user_input.get(CONF_OUTSIDE_SENSOR) and not self.hass.states.get(user_input[CONF_OUTSIDE_SENSOR]):
                 errors[CONF_OUTSIDE_SENSOR] = "entity_not_found"
             
             if not errors:
@@ -80,7 +80,7 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_ROOM_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
-                vol.Required(CONF_OUTSIDE_SENSOR): selector.EntitySelector(
+                vol.Optional(CONF_OUTSIDE_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
                 vol.Optional(CONF_AVERAGE_SENSOR): selector.EntitySelector(
@@ -247,4 +247,5 @@ class SmartClimateOptionsFlow(config_entries.OptionsFlow):
                 ),
             }),
         )
+
 
