@@ -86,94 +86,70 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def _setup_device_links(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Set up device links to show controlled entities in device controls."""
-    # Add a delay to ensure devices are fully registered
-    await asyncio.sleep(2)
+    """Set up device links by moving heat pump entity to our device."""
+    # Wait for entity registry to be ready
+    await asyncio.sleep(1)
     
-    device_reg = dr.async_get(hass)
     entity_reg = er.async_get(hass)
+    device_reg = dr.async_get(hass)
     
-    # Get our device
+    # Get our Smart Climate device
     our_device = device_reg.async_get_device(
         identifiers={(DOMAIN, entry.entry_id)}
     )
     
     if not our_device:
-        _LOGGER.warning("Could not find Smart Climate Control device")
-        # Try to create it explicitly
-        our_device = device_reg.async_get_or_create(
-            config_entry_id=entry.entry_id,
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.data.get("name", "Smart Climate Control"),
-            manufacturer="Custom",
-            model="Smart Climate Controller",
-        )
-        _LOGGER.info(f"Created Smart Climate Control device: {our_device.id}")
+        _LOGGER.error("Smart Climate Control device not found - this shouldn't happen")
+        return
     
-    # Get the controlled heat pump entity
+    # Get the heat pump entity
     heat_pump_entity_id = entry.data[CONF_HEAT_PUMP]
+    _LOGGER.info(f"Looking for heat pump entity: {heat_pump_entity_id}")
+    
     heat_pump_entity = entity_reg.async_get(heat_pump_entity_id)
     
     if not heat_pump_entity:
-        _LOGGER.warning(f"Heat pump entity {heat_pump_entity_id} not found in entity registry")
+        _LOGGER.error(f"Heat pump entity {heat_pump_entity_id} not found in entity registry")
         return
     
-    if not heat_pump_entity.device_id:
-        _LOGGER.warning(f"Heat pump entity {heat_pump_entity_id} has no device_id")
-        return
+    _LOGGER.info(f"Found heat pump entity: {heat_pump_entity_id}, current device: {heat_pump_entity.device_id}")
     
-    # Get the heat pump device
-    heat_pump_device = device_reg.async_get(heat_pump_entity.device_id)
+    # Store the original device ID for potential restoration
+    original_device_id = heat_pump_entity.device_id
     
-    if not heat_pump_device:
-        _LOGGER.warning(f"Could not find heat pump device for {heat_pump_entity.device_id}")
-        return
+    # Get area from original device if it exists
+    original_area = None
+    if original_device_id:
+        original_device = device_reg.async_get(original_device_id)
+        if original_device:
+            original_area = original_device.area_id
+            _LOGGER.info(f"Heat pump original device: {original_device.name}, area: {original_area}")
     
-    _LOGGER.info(f"Found heat pump device: {heat_pump_device.name} (ID: {heat_pump_device.id})")
-    
-    # Try approach 1: via_device_id (child of heat pump)
-    try:
-        device_reg.async_update_device(
-            our_device.id,
-            via_device_id=heat_pump_device.id,
-            suggested_area=heat_pump_device.area_id,
-        )
-        _LOGGER.info(f"Approach 1: Set Smart Climate as child of heat pump device")
-    except Exception as e:
-        _LOGGER.warning(f"Approach 1 failed: {e}")
-    
-    # Try approach 2: Make heat pump a child of smart climate (reverse relationship)
-    try:
-        device_reg.async_update_device(
-            heat_pump_device.id,
-            via_device_id=our_device.id,
-        )
-        _LOGGER.info(f"Approach 2: Set heat pump as child of Smart Climate device")
-    except Exception as e:
-        _LOGGER.warning(f"Approach 2 failed: {e}")
-    
-    # Try approach 3: Move heat pump entity to our device
+    # Move the heat pump entity to our device
     try:
         entity_reg.async_update_entity(
             heat_pump_entity_id,
             device_id=our_device.id,
         )
-        _LOGGER.info(f"Approach 3: Moved heat pump entity to Smart Climate device")
+        _LOGGER.info(f"SUCCESS: Moved heat pump entity {heat_pump_entity_id} to Smart Climate device")
+        
+        # Update our device with the area from the heat pump
+        if original_area:
+            device_reg.async_update_device(
+                our_device.id,
+                suggested_area=original_area,
+            )
+            _LOGGER.info(f"Updated Smart Climate device area to: {original_area}")
+                
     except Exception as e:
-        _LOGGER.warning(f"Approach 3 failed: {e}")
+        _LOGGER.error(f"FAILED to move heat pump entity: {e}")
+        return
     
-    # Try approach 4: Create connections
-    try:
-        device_reg.async_update_device(
-            our_device.id,
-            suggested_area=heat_pump_device.area_id,
-            connections=heat_pump_device.connections,
-        )
-        _LOGGER.info(f"Approach 4: Added connections from heat pump to Smart Climate")
-    except Exception as e:
-        _LOGGER.warning(f"Approach 4 failed: {e}")
+    # Store the original device ID in coordinator for potential restoration
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coordinator.original_heat_pump_device_id = original_device_id
     
-    _LOGGER.info(f"Device linking attempts completed for Smart Climate Control -> {heat_pump_device.name}")
+    _LOGGER.info(f"Device linking complete - heat pump entity should now appear in Smart Climate Control device")
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
@@ -702,4 +678,5 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
