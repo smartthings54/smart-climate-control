@@ -298,7 +298,13 @@ class SmartClimateCoordinator:
             
             # Get sensor values
             room_temp = await self._get_sensor_value(self.config[CONF_ROOM_SENSOR])
-            outside_temp = await self._get_sensor_value(self.config[CONF_OUTSIDE_SENSOR], 5.0)
+            # Handle optional outside sensor
+            outside_temp = None
+            if self.config.get(CONF_OUTSIDE_SENSOR):
+                outside_temp = await self._get_sensor_value(self.config[CONF_OUTSIDE_SENSOR], 5.0)
+            else:
+                # No outside sensor configured - use default for display only
+                outside_temp = 5.0
             avg_house_temp = await self._get_sensor_value(self.config.get(CONF_AVERAGE_SENSOR))
             
             # Check door status
@@ -322,8 +328,9 @@ class SmartClimateCoordinator:
             weather_compensation = 0
             original_temperature = temperature
             
-            # Apply weather compensation if heating
-            if action == "on" and outside_temp < 0 and temperature is not None:
+            # Apply weather compensation only if we have a real outside sensor
+            has_outside_sensor = self.config.get(CONF_OUTSIDE_SENSOR) is not None
+            if action == "on" and has_outside_sensor and outside_temp < 0 and temperature is not None:
                 weather_compensation = min(abs(outside_temp) * self.weather_comp_factor, 5.0)
                 temperature = min(temperature + weather_compensation, self.config.get(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP))
                 temperature = max(temperature, self.config.get(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP))
@@ -334,7 +341,7 @@ class SmartClimateCoordinator:
             
             self.debug_text = self._format_debug_text(
                 action, temperature, room_temp, avg_house_temp, outside_temp, reason,
-                original_temperature, weather_compensation
+                original_temperature, weather_compensation, has_outside_sensor
             )
             
             # Control heat pump directly
@@ -595,11 +602,17 @@ class SmartClimateCoordinator:
         self, action: str, temperature: Optional[float],
         room_temp: Optional[float], avg_house_temp: Optional[float],
         outside_temp: float, reason: str,
-        original_temperature: Optional[float] = None, weather_compensation: float = 0
+        original_temperature: Optional[float] = None, weather_compensation: float = 0,
+        has_outside_sensor: bool = True
     ) -> str:
         """Format debug text for display."""
         room_str = f"{room_temp:.1f}" if room_temp is not None else "N/A"
         avg_str = f"{avg_house_temp:.1f}" if avg_house_temp is not None else "N/A"
+        # Show outside temp differently when no sensor
+        if has_outside_sensor:
+            outside_str = f"{outside_temp:.1f}°C"
+        else:
+            outside_str = "N/A"
         
         if action == "off":
             return f"OFF | R: {room_str}°C | H: {avg_str}°C | O: {outside_temp:.1f}°C | {reason}"
@@ -678,5 +691,6 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
