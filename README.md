@@ -4,7 +4,10 @@
 [![GitHub Release](https://img.shields.io/github/release/smartthings54/smart-climate-control.svg)](https://github.com/smartthings54/smart-climate-control/releases)
 [![License](https://img.shields.io/github/license/smartthings54/smart-climate-control.svg)](LICENSE)
 
-A sophisticated climate control system for Home Assistant that provides intelligent heating management with features like weather compensation, sleep detection, occupancy tracking, and energy optimization.
+This project started out as a Node-RED flow but has been rebuilt as a native Home Assistant integration.
+The goal is to make climate management simpler and more flexible — instead of editing flows, configuration can now be adjusted directly from the Home Assistant control panel.
+
+The majority of the code was generated with the help of AI, with my role focused on integration, testing, and making it work within my setup.
 
 ## 🌟 Features
 
@@ -390,4 +393,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - HACS compatibility
 - 
+
 
