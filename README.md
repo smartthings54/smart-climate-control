@@ -161,35 +161,93 @@ entities:
   - entity: number.smart_climate_eco_temperature
 ```
 
-### Debug/Overview Card
+### DeBug / OverView
 ```yaml
 type: markdown
 content: >
   ### Smart Climate Overview  
 
-  {% set target = state_attr('sensor.smart_climate_status','heat_pump_temperature')|float(20) %}
-  {% set room = state_attr('sensor.smart_climate_status','heat_pump_current_temp')|float(20) %}
-  {% set deadband_below = state_attr('sensor.smart_climate_status','deadband_below')|float(0.5) %}
-  {% set deadband_above = state_attr('sensor.smart_climate_status','deadband_above')|float(1.0) %}
-  {% set mode = state_attr('sensor.smart_climate_status','heat_pump_mode') %}
-  {% set action = state_attr('sensor.smart_climate_status','heat_pump_action') %}
-  {% set enabled = state_attr('sensor.smart_climate_status','smart_control_enabled') %}
-  
-  Smart Climate Control is {% if enabled %}🟢 enabled{% else %}🔴 disabled{% endif %} 
-  and set to {{ mode }}. Room temperature is **{{ room }}°C** with a target of **{{ target }}°C**.
-  
-  **Deadband:** ON at **{{ (target - deadband_below)|round(1) }}°C** / OFF at **{{ (target + deadband_above)|round(1) }}°C**
-  
-  **Temperature Settings:**   
+  {% set target =
+  state_attr('sensor.smart_climate_status','heat_pump_temperature')|float(20) %}
+  {% set room =
+  state_attr('sensor.smart_climate_status','heat_pump_current_temp')|float(20)
+  %} {% set deadband_below =
+  state_attr('sensor.smart_climate_status','deadband_below')|float(0.5) %} {%
+  set deadband_above =
+  state_attr('sensor.smart_climate_status','deadband_above')|float(1.0) %} {%
+  set mode = state_attr('sensor.smart_climate_status','heat_pump_mode') %} {%
+  set action = state_attr('sensor.smart_climate_status','heat_pump_action') %}
+  {% set enabled =
+  state_attr('sensor.smart_climate_status','smart_control_enabled') %} {% set
+  comp_factor =
+  state_attr('sensor.smart_climate_status','weather_comp_factor')|float(0.5) %}
+  {% set min_comp_temp =
+  state_attr('sensor.smart_climate_status','min_comp_temp')|float(16) %} {% set
+  max_comp_temp =
+  state_attr('sensor.smart_climate_status','max_comp_temp')|float(25) %} {% set
+  max_house_temp =
+  state_attr('sensor.smart_climate_status','max_house_temp')|float(25) %} {% set
+  outside = states('sensor.average_outside_temperature')|float(10) %} {% set
+  comp_adjust = (outside|abs * comp_factor) if outside < 0 else 0 %} {% set
+  adjusted_target = (target + comp_adjust)|round(1) %}
+
+  Smart Climate Control is {% if enabled %}🟢 enabled{% else %}🔴 disabled{%
+  endif %} and set to {{ mode }}. with a room temperature is **{{ room }}°C**
+  with a target of **{{ target }}°C**, with a deadband of **{{ deadband_below
+  }}°C** below and **{{ deadband_above }}°C** above target, Resulting in **ON**
+  at **{{ (target - deadband_below)|round(1) }}°C** and **OFF** at **{{ (target
+  + deadband_above)|round(1) }}°C**  
+
+  {% if comp_adjust > 0 %} Because outside is **{{ outside }}°C**, compensation
+  adds **+{{ comp_adjust|round(1) }}°C**.   ✅ Adjusted target is now **{{
+  adjusted_target }}°C**.   {% else %} No weather compensation applied outside
+  is **{{ outside }}°C**{% endif %}
+
+
+  **Settings:**   
+
   - Comfort: {{ states('number.smart_climate_comfort_temperature') }}°C   
+
   - Eco: {{ states('number.smart_climate_eco_temperature') }}°C   
+
   - Boost: {{ states('number.smart_climate_boost_temperature') }}°C   
 
-  **Control Switches:**   
-  - Climate Management: {{ states('switch.smart_climate_climate_management') }}   
+  - Max House Temp: {{ max_house_temp }}°C   
+
+  - Comp Range: {{ min_comp_temp }}°C → {{ max_comp_temp }}°C
+
+
+  **Switches:**   
+
+  - Climate Management: {{ states('switch.smart_climate_climate_management')
+  }}   
+
   - Force Eco Mode: {{ states('switch.smart_climate_force_eco_mode') }}   
-  - Force Comfort Mode: {{ states('switch.smart_climate_force_comfort_mode') }}  
+
+  - Force Comfort Mode: {{ states('switch.smart_climate_force_comfort_mode')
+  }}  
+
+
+  **Conditions:**   
+
+  - Outside Temp: {{ outside }}°C   
+
+  - Schedule State: {{ states('schedule.heating') }}   
+
+  - Presence: {{ states('sensor.combined_tracker') }}  
+
+  {% if room <= (target - deadband_below) %} 
+
+  🔥 **System should be HEATING** (room is {{ (target - room)|round(1) }}°C
+  below target)   {% elif room >= (target + deadband_above) %} ❄️ **System
+  should be OFF** (room is {{ (room - target)|round(1) }}°C above target)   {%
+  else %} 
+
+  ⚖️ **System is in DEADBAND zone** (holding state)   {% endif %}
+
 ```
+
+![Smart Climate Overview Card](docs/images/smart-climate-overview.png)
 
 ## 🔧 Services
 
@@ -333,3 +391,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Configurable deadband and temperature settings
 - Force mode switches
 - Schedule entity support with options configuration
+
