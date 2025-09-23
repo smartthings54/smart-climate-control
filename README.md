@@ -110,7 +110,7 @@ The majority of the code was generated with the help of AI, with my role focused
 ## 🎛️ Created Entities
 
 ### Climate Entity
-- **`climate.smart_climate_control`** - Main climate control with OFF/HEAT/AUTO modes
+- **`climate.YOUR_CLIMATE_ENTITY`** - Main climate control with OFF/HEAT/AUTO modes
 
 ### Switches  
 - **`switch.smart_climate_climate_management`** - Master enable/disable for smart control
@@ -133,7 +133,7 @@ The majority of the code was generated with the help of AI, with my role focused
 ```yaml
 type: entities
 entities:
-  - entity: climate.smart_climate_control
+  - entity: climate.YOUR_CLIMATE_ENTITY
   - entity: sensor.smart_climate_status
   - entity: sensor.smart_climate_mode
   - entity: sensor.smart_climate_target
@@ -144,7 +144,7 @@ entities:
 type: vertical-stack
 cards:
   - type: thermostat
-    entity: climate.smart_climate_control
+    entity: climate.YOUR_CLIMATE_ENTITY
   - type: entities
     entities:
       - entity: switch.smart_climate_climate_management
@@ -249,71 +249,6 @@ content: >
 
 ![Smart Climate Overview Card](docs/images/smart-climate-overview.png)
 
-## 🔧 Services
-
-### smart_climate_control.force_eco
-Force the system into eco mode.
-
-```yaml
-service: smart_climate_control.force_eco
-data:
-  enable: true  # or false to disable
-```
-
-### smart_climate_control.force_comfort
-Force the system into comfort mode.
-
-```yaml
-service: smart_climate_control.force_comfort
-data:
-  enable: true  # or false to disable
-```
-
-### smart_climate_control.reset_temperatures
-Reset all temperature settings to defaults.
-
-```yaml
-service: smart_climate_control.reset_temperatures
-```
-
-## 🤖 Automations
-
-### Example: Schedule-Based Mode Changes
-```yaml
-automation:
-  - alias: "Morning Comfort Mode"
-    trigger:
-      - platform: time
-        at: "06:00:00"
-    action:
-      - service: switch.turn_off
-        target:
-          entity_id: switch.smart_climate_force_eco_mode
-
-  - alias: "Night Eco Mode"  
-    trigger:
-      - platform: time
-        at: "22:00:00"
-    action:
-      - service: switch.turn_on
-        target:
-          entity_id: switch.smart_climate_force_eco_mode
-```
-
-### Example: Away Mode
-```yaml
-automation:
-  - alias: "Away Mode"
-    trigger:
-      - platform: state
-        entity_id: person.YOUR_ENTITY
-        to: "not_home"
-        for: "00:10:00"
-    action:
-      - service: switch.turn_off
-        target:
-          entity_id: switch.smart_climate_climate_management
-```
 
 ## 🎯 How It Works
 
@@ -329,18 +264,6 @@ The system operates on a 60-second cycle:
    - Room temperature vs target with deadband
 3. **Weather Compensation**: Adjusts target up for cold outside temps (if outside sensor configured)
 4. **Action Execution**: Controls heat pump accordingly
-
-### Temperature Control Logic
-
-- **Heating ON**: When room temp ≤ (target - deadband_below)
-- **Heating OFF**: When room temp ≥ (target + deadband_above)  
-- **Maintain State**: When in deadband zone
-
-### HVAC Mode Behavior
-
-- **OFF**: Smart control disabled, heat pump turned off
-- **AUTO**: Smart control enabled, follows schedule/logic
-- **HEAT**: Smart control enabled + force comfort mode active
 
 ### Safety Features
 
@@ -391,4 +314,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Configurable deadband and temperature settings
 - Force mode switches
 - Schedule entity support with options configuration
+
 
