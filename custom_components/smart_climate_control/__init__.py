@@ -406,7 +406,9 @@ class SmartClimateCoordinator:
     
     async def _check_schedule_status(self) -> None:
         """Check schedule entity for current mode."""
-        schedule_entity = self.config.get(CONF_SCHEDULE_ENTITY)
+        # Get schedule entity from options first, fallback to config data
+        schedule_entity = self.entry.options.get(CONF_SCHEDULE_ENTITY) or self.config.get(CONF_SCHEDULE_ENTITY)
+        
         if not schedule_entity:
             self.schedule_mode = "comfort"
             return
@@ -691,6 +693,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
