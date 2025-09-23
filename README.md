@@ -252,10 +252,11 @@ content: >
 **📊 Install Setting**
 
 If you wish to adjust the setting used at install
-Min & Max Temperatures
-Deadband Highs & Lower
-Weather Compensation Factor
-Schedule Used
+   - Min & Max Temperatures
+   - Deadband Highs & Lower
+   - Weather Compensation Factor
+   - Schedule Used
+
 clicking on the gear will revelle all needed 
 
 ![Smart Climate Overview Card](docs/images/deadbands.jpg)
@@ -325,6 +326,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Configurable deadband and temperature settings
 - Force mode switches
 - Schedule entity support with options configuration
+
 
 
 
