@@ -13,32 +13,35 @@ The majority of the code was generated with the help of AI, with my role focused
 
 - **🌡️ Intelligent Temperature Control**
   - Deadband control to prevent cycling
-  - Weather compensation for cold days
+  - Weather compensation for cold days (when outside sensor configured)
   - Multiple temperature presets (Comfort, Eco, Boost)
+  - Adjustable temperature settings via number entities
   
 - **🏠 Smart Home Integration**
-  - Occupancy-based heating
-  - Sleep detection for automatic eco mode
+  - Occupancy-based heating via presence tracker
+  - Sleep detection for automatic eco mode (requires 2 bed sensors)
   - Door/window monitoring to prevent energy waste
+  - Schedule integration with mode support (comfort/eco/boost/off)
   
 - **⚡ Energy Optimization**
   - House average temperature limits
-  - Schedule integration
-  - Automatic daily temperature reset
+  - Configurable deadband ranges above/below target
+  - Maximum/minimum compensation temperature limits
   
 - **📊 Comprehensive Monitoring**
-  - Real-time status display
-  - Debug information
-  - Multiple sensor outputs
+  - Real-time status display via sensors
+  - Debug information showing current logic
+  - Climate entity with proper HVAC modes
+  - Multiple switch controls for force modes
 
 ## 📋 Prerequisites
 
 - Home Assistant 2024.1.0 or newer
 - HACS (Home Assistant Community Store) installed
 - The following entities in your Home Assistant:
-  - A climate entity (heat pump/thermostat)
+  - A climate entity (heat pump/thermostat) to control
   - Room temperature sensor
-  - Outside temperature sensor
+  - Outside temperature sensor (optional but recommended for weather compensation)
 
 ## 🚀 Installation
 
@@ -73,7 +76,7 @@ The majority of the code was generated with the help of AI, with my role focused
 2. Click **+ Add Integration**
 3. Search for **Smart Climate Control**
 4. Follow the setup wizard:
-   - Select your heat pump/climate entity
+   - Select your heat pump/climate entity to control
    - Choose temperature sensors
    - Configure optional features
 
@@ -82,24 +85,47 @@ The majority of the code was generated with the help of AI, with my role focused
 #### Required Entities
 - **Heat Pump Entity**: Your climate device to control
 - **Room Temperature Sensor**: The room you want to control
-- **Outside Temperature Sensor**: For weather compensation
 
 #### Optional Entities
-- **Average House Temperature**: For whole-house monitoring
-- **Door Sensor**: Disable heating when door is open
-- **Bed Sensors**: For automatic sleep detection
-- **Presence Tracker**: For occupancy-based control
+- **Outside Temperature Sensor**: For weather compensation
+- **Average House Temperature**: For whole-house temperature monitoring
+- **Door Sensor**: Disable heating when door is open for >70 seconds
+- **Presence Tracker**: For occupancy-based control (person/device_tracker/group/sensor/input_boolean)
+- **Heating Schedule**: Schedule entity for automatic mode changes
+- **Bed Sensors**: Two binary sensors or input_booleans for sleep detection
 
-#### Temperature Settings
-- **Comfort Temperature**: Default 19°C (16-25°C range)
-- **Eco Temperature**: Default 17°C (16-25°C range)
-- **Boost Temperature**: Default 21°C (16-25°C range)
+#### Temperature Settings (Configurable via Integration Options)
+- **Comfort Temperature**: Default 20°C (16-25°C range)
+- **Eco Temperature**: Default 18°C (16-25°C range)  
+- **Boost Temperature**: Default 23°C (16-25°C range)
 
-#### Advanced Settings
-- **Deadband Below**: 0.5°C (0.1-2°C range)
-- **Deadband Above**: 0.5°C (0.1-2°C range)
-- **Max House Temperature**: 26°C (20-30°C range)
-- **Weather Compensation Factor**: 0.5 (0-1 range)
+#### Advanced Settings (Configurable via Integration Options)
+- **Deadband Below**: 0.5°C (0.1-2°C range) - turn ON when temp drops this much below target
+- **Deadband Above**: 0.5°C (0.1-2°C range) - turn OFF when temp rises this much above target
+- **Max House Temperature**: 25°C (20-30°C range) - safety shutoff limit
+- **Weather Compensation Factor**: 0.5 (0-1 range) - how much to boost temp based on outside temp
+- **Max Compensated Temperature**: 25°C (20-30°C range)
+- **Min Compensated Temperature**: 16°C (14-20°C range)
+
+## 🎛️ Created Entities
+
+### Climate Entity
+- **`climate.smart_climate_control`** - Main climate control with OFF/HEAT/AUTO modes
+
+### Switches  
+- **`switch.smart_climate_climate_management`** - Master enable/disable for smart control
+- **`switch.smart_climate_force_comfort_mode`** - Force comfort temperature 
+- **`switch.smart_climate_force_eco_mode`** - Force eco temperature
+
+### Sensors
+- **`sensor.smart_climate_status`** - Current system status and debug info
+- **`sensor.smart_climate_mode`** - Current active mode (Comfort/Eco/Force Comfort/etc)
+- **`sensor.smart_climate_target`** - Target temperature being used
+
+### Number Entities (for adjusting temperatures)
+- **`number.smart_climate_boost_temperature`** - Adjust boost temperature
+- **`number.smart_climate_comfort_temperature`** - Adjust comfort temperature  
+- **`number.smart_climate_eco_temperature`** - Adjust eco temperature
 
 ## 📱 Dashboard Cards
 
@@ -107,7 +133,7 @@ The majority of the code was generated with the help of AI, with my role focused
 ```yaml
 type: entities
 entities:
-  - entity: climate.YOUR_ENTITY
+  - entity: climate.smart_climate_control
   - entity: sensor.smart_climate_status
   - entity: sensor.smart_climate_mode
   - entity: sensor.smart_climate_target
@@ -118,7 +144,7 @@ entities:
 type: vertical-stack
 cards:
   - type: thermostat
-    entity: climate.YOUR_ENTITY
+    entity: climate.smart_climate_control
   - type: entities
     entities:
       - entity: switch.smart_climate_climate_management
@@ -135,93 +161,35 @@ entities:
   - entity: number.smart_climate_eco_temperature
 ```
 
-### DeBug / OverView
+### Debug/Overview Card
 ```yaml
 type: markdown
 content: >
   ### Smart Climate Overview  
 
-  {% set target =
-  state_attr('sensor.smart_climate_status','heat_pump_temperature')|float(20) %}
-  {% set room =
-  state_attr('sensor.smart_climate_status','heat_pump_current_temp')|float(20)
-  %} {% set deadband_below =
-  state_attr('sensor.smart_climate_status','deadband_below')|float(0.5) %} {%
-  set deadband_above =
-  state_attr('sensor.smart_climate_status','deadband_above')|float(1.0) %} {%
-  set mode = state_attr('sensor.smart_climate_status','heat_pump_mode') %} {%
-  set action = state_attr('sensor.smart_climate_status','heat_pump_action') %}
-  {% set enabled =
-  state_attr('sensor.smart_climate_status','smart_control_enabled') %} {% set
-  comp_factor =
-  state_attr('sensor.smart_climate_status','weather_comp_factor')|float(0.5) %}
-  {% set min_comp_temp =
-  state_attr('sensor.smart_climate_status','min_comp_temp')|float(16) %} {% set
-  max_comp_temp =
-  state_attr('sensor.smart_climate_status','max_comp_temp')|float(25) %} {% set
-  max_house_temp =
-  state_attr('sensor.smart_climate_status','max_house_temp')|float(25) %} {% set
-  outside = states('sensor.average_outside_temperature')|float(10) %} {% set
-  comp_adjust = (outside|abs * comp_factor) if outside < 0 else 0 %} {% set
-  adjusted_target = (target + comp_adjust)|round(1) %}
-
-  Smart Climate Control is {% if enabled %}🟢 enabled{% else %}🔴 disabled{%
-  endif %} and set to {{ mode }}. with a room temperature is **{{ room }}°C**
-  with a target of **{{ target }}°C**, with a deadband of **{{ deadband_below
-  }}°C** below and **{{ deadband_above }}°C** above target, Resulting in **ON**
-  at **{{ (target - deadband_below)|round(1) }}°C** and **OFF** at **{{ (target
-  + deadband_above)|round(1) }}°C**  
-
-  {% if comp_adjust > 0 %} Because outside is **{{ outside }}°C**, compensation
-  adds **+{{ comp_adjust|round(1) }}°C**.   ✅ Adjusted target is now **{{
-  adjusted_target }}°C**.   {% else %} No weather compensation applied outside
-  is **{{ outside }}°C**{% endif %}
-
-
-  **Settings:**   
-
+  {% set target = state_attr('sensor.smart_climate_status','heat_pump_temperature')|float(20) %}
+  {% set room = state_attr('sensor.smart_climate_status','heat_pump_current_temp')|float(20) %}
+  {% set deadband_below = state_attr('sensor.smart_climate_status','deadband_below')|float(0.5) %}
+  {% set deadband_above = state_attr('sensor.smart_climate_status','deadband_above')|float(1.0) %}
+  {% set mode = state_attr('sensor.smart_climate_status','heat_pump_mode') %}
+  {% set action = state_attr('sensor.smart_climate_status','heat_pump_action') %}
+  {% set enabled = state_attr('sensor.smart_climate_status','smart_control_enabled') %}
+  
+  Smart Climate Control is {% if enabled %}🟢 enabled{% else %}🔴 disabled{% endif %} 
+  and set to {{ mode }}. Room temperature is **{{ room }}°C** with a target of **{{ target }}°C**.
+  
+  **Deadband:** ON at **{{ (target - deadband_below)|round(1) }}°C** / OFF at **{{ (target + deadband_above)|round(1) }}°C**
+  
+  **Temperature Settings:**   
   - Comfort: {{ states('number.smart_climate_comfort_temperature') }}°C   
-
   - Eco: {{ states('number.smart_climate_eco_temperature') }}°C   
-
   - Boost: {{ states('number.smart_climate_boost_temperature') }}°C   
 
-  - Max House Temp: {{ max_house_temp }}°C   
-
-  - Comp Range: {{ min_comp_temp }}°C → {{ max_comp_temp }}°C
-
-
-  **Switches:**   
-
-  - Climate Management: {{ states('switch.smart_climate_climate_management')
-  }}   
-
+  **Control Switches:**   
+  - Climate Management: {{ states('switch.smart_climate_climate_management') }}   
   - Force Eco Mode: {{ states('switch.smart_climate_force_eco_mode') }}   
-
-  - Force Comfort Mode: {{ states('switch.smart_climate_force_comfort_mode')
-  }}  
-
-
-  **Conditions:**   
-
-  - Outside Temp: {{ outside }}°C   
-
-  - Schedule State: {{ states('schedule.heating') }}   
-
-  - Presence: {{ states('sensor.combined_tracker') }}  
-
-  {% if room <= (target - deadband_below) %} 
-
-  🔥 **System should be HEATING** (room is {{ (target - room)|round(1) }}°C
-  below target)   {% elif room >= (target + deadband_above) %} ❄️ **System
-  should be OFF** (room is {{ (room - target)|round(1) }}°C above target)   {%
-  else %} 
-
-  ⚖️ **System is in DEADBAND zone** (holding state)   {% endif %}
-
+  - Force Comfort Mode: {{ states('switch.smart_climate_force_comfort_mode') }}  
 ```
-
-![Smart Climate Overview Card](docs/images/smart-climate-overview.png)
 
 ## 🔧 Services
 
@@ -234,11 +202,11 @@ data:
   enable: true  # or false to disable
 ```
 
-### switch.smart_climate_force_comfort_mode
+### smart_climate_control.force_comfort
 Force the system into comfort mode.
 
 ```yaml
-service: switch.smart_climate_force_comfort_mode
+service: smart_climate_control.force_comfort
 data:
   enable: true  # or false to disable
 ```
@@ -264,7 +232,7 @@ automation:
         target:
           entity_id: switch.smart_climate_force_eco_mode
 
-  - alias: "Night Eco Mode"
+  - alias: "Night Eco Mode"  
     trigger:
       - platform: time
         at: "22:00:00"
@@ -289,36 +257,6 @@ automation:
           entity_id: switch.smart_climate_climate_management
 ```
 
-### Example: Force Comfort When Cold Outside
-```yaml
-automation:
-  - alias: "Force Comfort When Very Cold"
-    trigger:
-      - platform: numeric_state
-        entity_id: sensor.outside_temperature
-        below: -5
-    action:
-      - service: switch.smart_climate_force_comfort_mode
-        data:
-          enable: true
-```
-
-### Example: Reset to Auto Mode
-```yaml
-automation:
-  - alias: "Reset to Auto Mode"
-    trigger:
-      - platform: time
-        at: "07:00:00"
-    action:
-      - service: switch.turn_off
-        target:
-          entity_id: switch.smart_climate_force_comfort_mode
-      - service: switch.turn_off
-        target:
-          entity_id: switch.smart_climate_force_eco_mode
-```
-
 ## 🎯 How It Works
 
 The system operates on a 60-second cycle:
@@ -326,45 +264,52 @@ The system operates on a 60-second cycle:
 1. **Data Collection**: Gathers all sensor readings
 2. **Decision Logic**: Evaluates conditions in priority order:
    - System enabled?
-   - Manual override active?
-   - Anyone home?
-   - Door open too long?
-   - House too hot?
-   - Room temperature vs target
-3. **Weather Compensation**: Adjusts for outdoor temperature
+   - Force modes active? (Force Comfort > Force Eco)
+   - Anyone home? (if presence tracker configured)
+   - Door open too long? (>70 seconds)
+   - House too hot? (average temperature limit)
+   - Room temperature vs target with deadband
+3. **Weather Compensation**: Adjusts target up for cold outside temps (if outside sensor configured)
 4. **Action Execution**: Controls heat pump accordingly
 
 ### Temperature Control Logic
 
-- **Heating ON**: When room temp < (target - deadband_below)
-- **Heating OFF**: When room temp > (target + deadband_above)
+- **Heating ON**: When room temp ≤ (target - deadband_below)
+- **Heating OFF**: When room temp ≥ (target + deadband_above)  
 - **Maintain State**: When in deadband zone
+
+### HVAC Mode Behavior
+
+- **OFF**: Smart control disabled, heat pump turned off
+- **AUTO**: Smart control enabled, follows schedule/logic
+- **HEAT**: Smart control enabled + force comfort mode active
 
 ### Safety Features
 
-- Maximum house temperature limit (default 26°C)
-- Temperature range limits (16-25°C)
-- Automatic shutoff when doors open
-- Sensor failure fallbacks
+- Maximum house temperature limit 
+- Temperature range limits (16-25°C for user settings)
+- Automatic shutoff when doors open >70 seconds
+- Sensor failure fallbacks (outside temp defaults to 5°C)
 
 ## 🐛 Troubleshooting
 
 ### System Not Heating
-1. Check if Climate Management switch is ON
-2. Verify someone is home (if using presence)
-3. Check door sensors aren't triggered
-4. Review the status sensor for details
+1. Check if **Climate Management** switch is ON
+2. Verify someone is home (if using presence tracker)
+3. Check door sensors aren't triggered  
+4. Review the **Status** sensor for details
+5. Check if **Force Eco Mode** is accidentally enabled
 
 ### Temperature Not Changing
-1. Check if Manual Override is OFF
-2. Verify Force Eco Mode setting
-3. Check if in deadband zone
-4. Review temperature settings
+1. Check if **Force modes** are overriding schedule
+2. Verify you're in the deadband zone (check Status sensor)
+3. Check temperature settings via Number entities
+4. Review schedule entity state (if configured)
 
-### Sensor Issues
-- Invalid sensors default to safe values
-- Outside temp defaults to 5°C if unavailable
-- Check logs for sensor warnings
+### Controls Not Working
+1. Make sure you're using the climate entity or switches, not calling services on the controlled heat pump directly
+2. Check Home Assistant logs for "Climate:" debug messages
+3. Verify the integration is properly controlling the heat pump entity
 
 ## 📝 Support
 
@@ -376,22 +321,15 @@ The system operates on a 60-second cycle:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-- Based on advanced Node-RED climate control logic
-- Inspired by energy-efficient heating practices
-- Community feedback and contributions
-
 ## 🔄 Changelog
 
 ### Version 1.0.0
 - Initial release
 - Core climate control functionality
 - Weather compensation
-- Sleep detection
+- Sleep detection  
 - Door monitoring
-
 - HACS compatibility
-- 
-
-
+- Configurable deadband and temperature settings
+- Force mode switches
+- Schedule entity support with options configuration
