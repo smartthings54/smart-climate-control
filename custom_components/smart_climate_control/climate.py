@@ -70,6 +70,8 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
                     self.coordinator.smart_control_enabled = True
                     if last_state.state == HVACMode.HEAT:
                         self.coordinator.override_mode = True
+                        # Clear force eco when restoring to force comfort
+                        self.coordinator.force_eco_mode = False
                     else:
                         self.coordinator.override_mode = False
                         
@@ -127,7 +129,6 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
             "eco_temp": self.coordinator.eco_temp,
             "boost_temp": self.coordinator.boost_temp,
             "smart_control_enabled": self.coordinator.smart_control_enabled,
-            # ADD THESE LINES:
             "deadband_below": self.coordinator.deadband_below,
             "deadband_above": self.coordinator.deadband_above,
             "max_house_temp": self.coordinator.max_house_temp,
@@ -173,21 +174,27 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
         self._attr_hvac_mode = hvac_mode
         
         if hvac_mode == HVACMode.OFF:
-            # FIXED: Properly disable smart control through coordinator
+            # Disable smart control through coordinator
             await self.coordinator.enable_smart_control(False)
         else:
-            # FIXED: Enable smart control through coordinator
+            # Enable smart control through coordinator
             await self.coordinator.enable_smart_control(True)
             
             # Remember the last active mode (HEAT or AUTO)
             if hvac_mode in [HVACMode.HEAT, HVACMode.AUTO]:
                 self._attr_last_active_mode = hvac_mode
             
-            # Set override mode based on HVAC mode
+            # FIXED: Clear conflicting force modes and set override mode properly
             if hvac_mode == HVACMode.HEAT:
+                # Force comfort mode - clear force eco and set override
                 self.coordinator.override_mode = True
-            else:
+                self.coordinator.force_eco_mode = False
+                _LOGGER.info("Climate: Set to HEAT mode - force comfort active, force eco cleared")
+            else:  # AUTO mode
+                # Auto mode - clear both force modes
                 self.coordinator.override_mode = False
+                self.coordinator.force_eco_mode = False
+                _LOGGER.info("Climate: Set to AUTO mode - both force modes cleared")
                 
         await self.coordinator.async_update()
 
@@ -200,6 +207,3 @@ class SmartClimateEntity(ClimateEntity, RestoreEntity):
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
         await self.async_set_hvac_mode(HVACMode.OFF)
-
-
-
