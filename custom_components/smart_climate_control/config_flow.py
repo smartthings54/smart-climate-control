@@ -245,7 +245,12 @@ class SmartClimateOptionsFlow(config_entries.OptionsFlow):
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=14, max=20, step=0.5, mode="slider", unit_of_measurement="°C")
                 ),
+                # ADD SCHEDULE ENTITY TO OPTIONS
+                vol.Optional(
+                    CONF_SCHEDULE_ENTITY,
+                    default=self.config_entry.data.get(CONF_SCHEDULE_ENTITY) or self.config_entry.options.get(CONF_SCHEDULE_ENTITY)
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="schedule")
+                ),
             }),
         )
-
-
