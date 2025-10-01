@@ -11,6 +11,7 @@
           "outside_sensor": "Outside Temperature Sensor (optional)",
           "average_sensor": "Average House Temperature Sensor (optional)",
           "door_sensor": "Door Sensor (optional)",
+          "heat_pump_contact": "Heat Pump Contact Sensor (optional - recommended for IR/SmartIR devices)",
           "presence_tracker": "Presence Tracker (optional)",
           "schedule_entity": "Heating Schedule (optional)"
         }
@@ -64,5 +65,6 @@
     }
   }
 }
+
 
 
