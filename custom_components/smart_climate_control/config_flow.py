@@ -52,7 +52,7 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
         """Handle the initial step."""
         errors = {}
-
+    
         if user_input is not None:
             # Validate heat pump entity exists
             if not self.hass.states.get(user_input[CONF_HEAT_PUMP]):
@@ -69,7 +69,7 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not errors:
                 self.data = user_input
                 return await self.async_step_options()
-
+    
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
@@ -88,6 +88,9 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_DOOR_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor", device_class="door")
+                ),
+                vol.Optional(CONF_HEAT_PUMP_CONTACT): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="binary_sensor")
                 ),
                 vol.Optional(CONF_SCHEDULE_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="schedule")
@@ -242,4 +245,5 @@ class SmartClimateOptionsFlow(config_entries.OptionsFlow):
                 ),
             }),
         )
+
 
