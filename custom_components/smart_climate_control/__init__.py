@@ -556,7 +556,7 @@ class SmartClimateCoordinator:
         if action == "on" and temperature is not None:
             # Only send command if something needs to change
             if current_hvac_mode != "heat" or current_temp != temperature:
-                _LOGGER.debug(f"Smart control: Setting {self.heat_pump_entity_id} to heat at {temperature}°C")
+                _LOGGER.info(f"Smart Climate: Setting heat pump to {temperature}°C")
                 await self.hass.services.async_call(
                     "climate",
                     "set_temperature",
@@ -565,19 +565,97 @@ class SmartClimateCoordinator:
                         "temperature": temperature,
                         "hvac_mode": "heat",
                     },
-                    blocking=False,
+                    blocking=True,
                 )
-                
+                    
         elif action == "off":
             # Only turn off if it's currently on
             if current_hvac_mode != "off":
-                _LOGGER.debug(f"Smart control: Turning off {self.heat_pump_entity_id}")
+                _LOGGER.info(f"Smart Climate: Turning off heat pump")
                 await self.hass.services.async_call(
                     "climate",
                     SERVICE_TURN_OFF,
                     {"entity_id": self.heat_pump_entity_id},
-                    blocking=False,
+                    blocking=True,
                 )
+    
+    
+    async def _verify_heat_pump_with_contact_sensor(self) -> None:
+        """Verify heat pump is actually running using contact sensor and retry if needed."""
+        # Check if contact sensor is configured
+        contact_sensor = self.config.get(CONF_HEAT_PUMP_CONTACT)
+        if not contact_sensor:
+            # No contact sensor configured - skip verification
+            return
+        
+        # Only verify when we think it should be heating
+        if self.current_action != "on":
+            return
+        
+        # Give the heat pump time to start (IR devices can be slow)
+        await asyncio.sleep(10)
+        
+        vent_state = self.hass.states.get(contact_sensor)
+        if not vent_state:
+            _LOGGER.warning(f"Contact sensor {contact_sensor} not found - cannot verify heat pump")
+            return
+        
+        # Check if vents are actually open (heat pump running)
+        # Assumes "on" = vents open/running. Adjust if your sensor is reversed.
+        vents_open = vent_state.state == "on"
+        
+        if not vents_open:
+            _LOGGER.warning(f"⚠️  Heat pump command may have failed - contact sensor shows not running. Retrying...")
+            
+            # Retry the command
+            heat_pump_state = self.hass.states.get(self.heat_pump_entity_id)
+            if heat_pump_state:
+                current_temp = heat_pump_state.attributes.get('temperature', self.comfort_temp)
+                
+                # Send command again (IR signals can be missed)
+                await self.hass.services.async_call(
+                    "climate",
+                    "set_temperature",
+                    {
+                        "entity_id": self.heat_pump_entity_id,
+                        "temperature": current_temp,
+                        "hvac_mode": "heat",
+                    },
+                    blocking=True,
+                )
+                
+                # Wait and check again
+                await asyncio.sleep(10)
+                verify_state = self.hass.states.get(contact_sensor)
+                
+                if verify_state and verify_state.state == "on":
+                    _LOGGER.info(f"✅ Heat pump started after retry")
+                    # Clear any previous alerts
+                    await self.hass.services.async_call(
+                        "persistent_notification",
+                        "dismiss",
+                        {"notification_id": "smart_climate_heat_pump_alert"}
+                    )
+                else:
+                    _LOGGER.error(f"❌ Heat pump still not running after retry - check device!")
+                    # Create a persistent notification for the user
+                    await self.hass.services.async_call(
+                        "persistent_notification",
+                        "create",
+                        {
+                            "title": "Smart Climate Control Alert",
+                            "message": f"Heat pump may not be responding to commands. Please check the device manually. Contact sensor: {contact_sensor}",
+                            "notification_id": "smart_climate_heat_pump_alert"
+                        }
+                    )
+        else:
+            _LOGGER.debug(f"✅ Heat pump verified running via contact sensor")
+            # Clear any previous alerts
+            await self.hass.services.async_call(
+                "persistent_notification",
+                "dismiss",
+                {"notification_id": "smart_climate_heat_pump_alert"}
+            )
     
     async def _release_control(self) -> None:
         """Release control back to manual operation."""
@@ -693,6 +771,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
