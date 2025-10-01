@@ -152,7 +152,7 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Optional("bed_sensor"): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["binary_sensor", "input_boolean"]
+                        domain=["binary_sensor", "input_boolean", "sensor"]
                     )
                 ),
             }),
@@ -242,3 +242,4 @@ class SmartClimateOptionsFlow(config_entries.OptionsFlow):
                 ),
             }),
         )
+
