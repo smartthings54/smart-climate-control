@@ -29,6 +29,7 @@ from .const import (
     CONF_DOOR_SENSOR,
     CONF_BED_SENSORS,
     CONF_SCHEDULE_ENTITY,
+    CONF_HEAT_PUMP_CONTACT,
     CONF_COMFORT_TEMP,
     CONF_ECO_TEMP,
     CONF_BOOST_TEMP,
@@ -774,6 +775,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
