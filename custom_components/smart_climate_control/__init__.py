@@ -347,6 +347,9 @@ class SmartClimateCoordinator:
             # Control heat pump directly
             await self._control_heat_pump_directly(action, temperature)
             
+            # Verify it's actually running (if contact sensor configured)
+            await self._verify_heat_pump_with_contact_sensor()
+            
             # Fire event for state update
             self.hass.bus.async_fire(f"{DOMAIN}_state_updated", {
                 "entry_id": self.entry.entry_id,
@@ -771,6 +774,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
