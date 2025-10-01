@@ -397,12 +397,12 @@ class SmartClimateCoordinator:
     async def _check_sleep_status(self) -> None:
         """Check if sleep mode should be active."""
         bed_sensors = self.config.get(CONF_BED_SENSORS, [])
-        if len(bed_sensors) >= 2:
-            bed1 = self.hass.states.get(bed_sensors[0])
-            bed2 = self.hass.states.get(bed_sensors[1])
+        if len(bed_sensors) >= 1:
+            # Single bed sensor - just check if it's on
+            bed_sensor = self.hass.states.get(bed_sensors[0])
             
-            if bed1 and bed2:
-                self.sleep_mode_active = (bed1.state == "on" and bed2.state == "on")
+            if bed_sensor:
+                self.sleep_mode_active = (bed_sensor.state == "on")
     
     async def _check_schedule_status(self) -> None:
         """Check schedule entity for current mode."""
@@ -693,6 +693,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
