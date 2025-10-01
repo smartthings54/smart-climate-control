@@ -23,6 +23,8 @@ The majority of the code was generated with the help of AI, with my role focused
   - Sleep detection for automatic eco mode (requires 2 bed sensors)
   - Door/window monitoring to prevent energy waste
   - Schedule integration with mode support (comfort/eco/boost/off)
+
+ - **Heat Pump Contact Sensor**: Binary sensor to verify heat pump is actually running (recommended for IR/SmartIR controlled devices)
   
 - **⚡ Energy Optimization**
   - House average temperature limits
@@ -327,6 +329,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Configurable deadband and temperature settings
 - Force mode switches
 - Schedule entity support with options configuration
+
 
 
 
