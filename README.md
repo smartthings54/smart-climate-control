@@ -93,7 +93,7 @@ The majority of the code was generated with the help of AI, with my role focused
 - **Door Sensor**: Disable heating when door is open for >70 seconds
 - **Presence Tracker**: For occupancy-based control (person/device_tracker/group/sensor/input_boolean)
 - **Heating Schedule**: Schedule entity for automatic mode changes
-- **Bed Sensors**: Two binary sensors or input_booleans for sleep detection
+- **Bed Sensor**: Binary sensor or input_boolean for sleep detection
 
 #### Temperature Settings (Configurable via Integration Options)
 - **Comfort Temperature**: Default 20°C (16-25°C range)
@@ -327,6 +327,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Configurable deadband and temperature settings
 - Force mode switches
 - Schedule entity support with options configuration
+
 
 
 
