@@ -27,7 +27,6 @@
           "weather_comp_factor": "Weather Compensation Factor"
         }
       },
-      "beds": {
 	  "beds": {
 	    "title": "Sleep Detection (Optional)",
 	    "description": "Select a bed sensor or input_boolean for automatic eco mode during sleep",
@@ -64,6 +63,7 @@
     }
   }
 }
+
 
 
 
