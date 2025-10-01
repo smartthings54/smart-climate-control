@@ -135,17 +135,11 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_beds(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle the bed sensors step."""
+        """Handle the bed sensor step."""
         if user_input is not None:
-            # Extract bed sensors if provided
-            bed_sensors = []
-            if user_input.get("bed_sensor_1"):
-                bed_sensors.append(user_input["bed_sensor_1"])
-            if user_input.get("bed_sensor_2"):
-                bed_sensors.append(user_input["bed_sensor_2"])
-            
-            if bed_sensors:
-                self.data[CONF_BED_SENSORS] = bed_sensors
+            # Extract bed sensor if provided
+            if user_input.get("bed_sensor"):
+                self.data[CONF_BED_SENSORS] = [user_input["bed_sensor"]]
             
             # Create the config entry
             return self.async_create_entry(
@@ -156,14 +150,9 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="beds",
             data_schema=vol.Schema({
-                vol.Optional("bed_sensor_1"): selector.EntitySelector(
+                vol.Optional("bed_sensor"): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["binary_sensor", "input_boolean"]  # ← CHANGED
-                    )
-                ),
-                vol.Optional("bed_sensor_2"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain=["binary_sensor", "input_boolean"]  # ← CHANGED
+                        domain=["binary_sensor", "input_boolean"]
                     )
                 ),
             }),
@@ -245,7 +234,6 @@ class SmartClimateOptionsFlow(config_entries.OptionsFlow):
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=14, max=20, step=0.5, mode="slider", unit_of_measurement="°C")
                 ),
-                # ADD SCHEDULE ENTITY TO OPTIONS
                 vol.Optional(
                     CONF_SCHEDULE_ENTITY,
                     default=self.config_entry.data.get(CONF_SCHEDULE_ENTITY) or self.config_entry.options.get(CONF_SCHEDULE_ENTITY)
