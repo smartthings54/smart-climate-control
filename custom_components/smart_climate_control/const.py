@@ -4,6 +4,7 @@ CONF_HEAT_PUMP = "heat_pump"
 CONF_ROOM_SENSOR = "room_sensor"
 CONF_OUTSIDE_SENSOR = "outside_sensor"
 CONF_AVERAGE_SENSOR = "average_sensor"
+CONF_HEAT_PUMP_CONTACT = "heat_pump_contact"
 CONF_DOOR_SENSOR = "door_sensor"
 CONF_BED_SENSORS = "bed_sensors"
 CONF_PRESENCE_TRACKER = "presence_tracker"
@@ -25,4 +26,5 @@ DEFAULT_DEADBAND = 0.5
 DEFAULT_MAX_HOUSE_TEMP = 25.0
 DEFAULT_WEATHER_COMP_FACTOR = 0.5
 DEFAULT_MAX_COMP_TEMP = 25.0
+
 DEFAULT_MIN_COMP_TEMP = 16.0
