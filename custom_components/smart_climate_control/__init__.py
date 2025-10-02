@@ -589,15 +589,14 @@ class SmartClimateCoordinator:
         # Check if contact sensor is configured
         contact_sensor = self.config.get(CONF_HEAT_PUMP_CONTACT)
         if not contact_sensor:
-            # No contact sensor configured - skip verification
             return
         
         # Only verify when we think it should be heating
         if self.current_action != "on":
             return
         
-        # Give the heat pump time to start (IR devices can be slow)
-        await asyncio.sleep(10)
+        # Give the heat pump MORE time to start (IR devices + physical startup can be slow)
+        await asyncio.sleep(20)  # ← CHANGED from 10 to 20 seconds
         
         vent_state = self.hass.states.get(contact_sensor)
         if not vent_state:
@@ -628,8 +627,8 @@ class SmartClimateCoordinator:
                     blocking=True,
                 )
                 
-                # Wait and check again
-                await asyncio.sleep(10)
+                # Wait LONGER for retry verification
+                await asyncio.sleep(20)  # ← CHANGED from 10 to 20 seconds
                 verify_state = self.hass.states.get(contact_sensor)
                 
                 if verify_state and verify_state.state == "on":
@@ -775,6 +774,7 @@ class SmartClimateCoordinator:
         
         # Update
         await self.async_update()
+
 
 
 
