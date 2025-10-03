@@ -389,31 +389,41 @@ The system operates on a 60-second cycle:
 ### Summer/Winter Mode Switching
 
 **Automatic with Automation:**
+
+Create two separate automations for automatic seasonal switching. Replace `sensor.outside_temperature` with your actual outside temperature sensor.
+
+**Automation 1: Switch to Cooling in Summer**
 ```yaml
-automation:
-  - alias: "Switch to Cooling in Summer"
-    trigger:
-      - platform: numeric_state
-        entity_id: sensor.outside_temperature
-        above: 25
-        for:
-          hours: 2
-    action:
-      - service: switch.turn_on
-        target:
-          entity_id: switch.smart_climate_force_cooling_mode
-          
-  - alias: "Switch to Heating in Winter"
-    trigger:
-      - platform: numeric_state
-        entity_id: sensor.outside_temperature
-        below: 15
-        for:
-          hours: 2
-    action:
-      - service: switch.turn_off
-        target:
-          entity_id: switch.smart_climate_force_cooling_mode
+alias: "Switch to Cooling in Summer"
+description: "Automatically enable cooling mode when outside temperature is high"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.outside_temperature
+    above: 25
+    for:
+      hours: 2
+action:
+  - service: switch.turn_on
+    target:
+      entity_id: switch.smart_climate_force_cooling_mode
+mode: single
+```
+
+**Automation 2: Switch to Heating in Winter**
+```yaml
+alias: "Switch to Heating in Winter"
+description: "Automatically disable cooling mode when outside temperature drops"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.outside_temperature
+    below: 15
+    for:
+      hours: 2
+action:
+  - service: switch.turn_off
+    target:
+      entity_id: switch.smart_climate_force_cooling_mode
+mode: single
 ```
 
 **Manual Control:**
