@@ -6,7 +6,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, DEFAULT_COMFORT_TEMP, DEFAULT_ECO_TEMP, DEFAULT_BOOST_TEMP
+from .const import DOMAIN, DEFAULT_COMFORT_TEMP, DEFAULT_ECO_TEMP, DEFAULT_BOOST_TEMP, DEFAULT_COOLING_TEMP
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,11 +18,12 @@ async def async_setup_entry(
     """Set up Smart Climate Control number entities."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
-    # Order: Boost, Comfort, Eco (logical temperature order from high to low)
+    # Order: Boost, Comfort, Eco, Cooling (logical order)
     entities = [
-        SmartClimateTemperatureNumber(coordinator, config_entry, "boost", "Boost Temperature", DEFAULT_BOOST_TEMP),
-        SmartClimateTemperatureNumber(coordinator, config_entry, "comfort", "Comfort Temperature", DEFAULT_COMFORT_TEMP),
-        SmartClimateTemperatureNumber(coordinator, config_entry, "eco", "Eco Temperature", DEFAULT_ECO_TEMP),
+        SmartClimateTemperatureNumber(coordinator, config_entry, "boost", "Boost Temperature", DEFAULT_BOOST_TEMP, 16.0, 25.0),
+        SmartClimateTemperatureNumber(coordinator, config_entry, "comfort", "Comfort Temperature", DEFAULT_COMFORT_TEMP, 16.0, 25.0),
+        SmartClimateTemperatureNumber(coordinator, config_entry, "eco", "Eco Temperature", DEFAULT_ECO_TEMP, 16.0, 25.0),
+        SmartClimateTemperatureNumber(coordinator, config_entry, "cooling", "Cooling Temperature", DEFAULT_COOLING_TEMP, 18.0, 28.0),
     ]
     
     async_add_entities(entities)
@@ -32,25 +33,25 @@ class SmartClimateTemperatureNumber(NumberEntity):
     """Temperature number entity for Smart Climate Control."""
 
     _attr_has_entity_name = True
-    _attr_native_min_value = 16.0
-    _attr_native_max_value = 25.0
     _attr_native_step = 0.5
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_mode = NumberMode.SLIDER
 
-    def __init__(self, coordinator, config_entry, temp_type, name, default):
+    def __init__(self, coordinator, config_entry, temp_type, name, default, min_val, max_val):
         """Initialize the number entity."""
         self.coordinator = coordinator
         self._temp_type = temp_type
         self._attr_name = name
         self._attr_unique_id = f"{config_entry.entry_id}_{temp_type}_temp"
+        self._attr_native_min_value = min_val
+        self._attr_native_max_value = max_val
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
             "name": config_entry.data.get("name", "Smart Climate Control"),
             "manufacturer": "Custom",
             "model": "Smart Climate Controller",
         }
-        self._attr_icon = "mdi:thermometer"
+        self._attr_icon = "mdi:thermometer" if temp_type != "cooling" else "mdi:snowflake-thermometer"
 
     @property
     def native_value(self):
@@ -61,6 +62,8 @@ class SmartClimateTemperatureNumber(NumberEntity):
             return self.coordinator.eco_temp
         elif self._temp_type == "boost":
             return self.coordinator.boost_temp
+        elif self._temp_type == "cooling":
+            return self.coordinator.cooling_temp
         return None
 
     async def async_set_native_value(self, value: float) -> None:
@@ -71,12 +74,15 @@ class SmartClimateTemperatureNumber(NumberEntity):
             self.coordinator.eco_temp = value
         elif self._temp_type == "boost":
             self.coordinator.boost_temp = value
+        elif self._temp_type == "cooling":
+            self.coordinator.cooling_temp = value
         
         # Save to storage
         await self.coordinator.store.async_save({
             "comfort_temp": self.coordinator.comfort_temp,
             "eco_temp": self.coordinator.eco_temp,
             "boost_temp": self.coordinator.boost_temp,
+            "cooling_temp": self.coordinator.cooling_temp,
         })
         
         await self.coordinator.async_update()
