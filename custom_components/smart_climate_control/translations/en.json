@@ -22,6 +22,7 @@
           "comfort_temp": "Comfort Temperature (°C)",
           "eco_temp": "Eco Temperature (°C)",
           "boost_temp": "Boost Temperature (°C)",
+          "cooling_temp": "Cooling Temperature (°C)",
           "deadband_below": "Deadband Below Target (°C)",
           "deadband_above": "Deadband Above Target (°C)",
           "max_house_temp": "Max House Temperature (°C)",
@@ -53,6 +54,7 @@
           "comfort_temp": "Comfort Temperature (°C)",
           "eco_temp": "Eco Temperature (°C)",
           "boost_temp": "Boost Temperature (°C)",
+          "cooling_temp": "Cooling Temperature (°C)",
           "deadband_below": "Deadband Below Target (°C)",
           "deadband_above": "Deadband Above Target (°C)",
           "max_house_temp": "Max House Temperature (°C)",
@@ -65,6 +67,3 @@
     }
   }
 }
-
-
-
