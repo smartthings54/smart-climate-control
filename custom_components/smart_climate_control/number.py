@@ -1,3 +1,4 @@
+"""Number platform for Smart Climate Control v2 beta."""
 import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
@@ -5,84 +6,55 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, DEFAULT_COMFORT_TEMP, DEFAULT_ECO_TEMP, DEFAULT_BOOST_TEMP, DEFAULT_COOLING_TEMP
+from .const import DOMAIN, DEFAULT_COMFORT_TEMP, DEFAULT_ECO_TEMP, DEFAULT_BOOST_TEMP
 
 _LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Smart Climate Control number entities."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    
-    # Order: Boost, Comfort, Eco, Cooling (logical order)
-    entities = [
-        SmartClimateTemperatureNumber(coordinator, config_entry, "boost", "Boost Temperature", DEFAULT_BOOST_TEMP, 16.0, 25.0),
-        SmartClimateTemperatureNumber(coordinator, config_entry, "comfort", "Comfort Temperature", DEFAULT_COMFORT_TEMP, 16.0, 25.0),
-        SmartClimateTemperatureNumber(coordinator, config_entry, "eco", "Eco Temperature", DEFAULT_ECO_TEMP, 16.0, 25.0),
-        SmartClimateTemperatureNumber(coordinator, config_entry, "cooling", "Cooling Temperature", DEFAULT_COOLING_TEMP, 18.0, 28.0),
-    ]
-    
-    async_add_entities(entities)
+    """Set up Smart Climate temperature number entities."""
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    async_add_entities([
+        SmartClimateTempNumber(coordinator, config_entry, "comfort", "Comfort Temperature", DEFAULT_COMFORT_TEMP),
+        SmartClimateTempNumber(coordinator, config_entry, "eco",     "Eco Temperature",     DEFAULT_ECO_TEMP),
+        SmartClimateTempNumber(coordinator, config_entry, "boost",   "Boost Temperature",   DEFAULT_BOOST_TEMP),
+    ])
 
 
-class SmartClimateTemperatureNumber(NumberEntity):
-    """Temperature number entity for Smart Climate Control."""
+class SmartClimateTempNumber(CoordinatorEntity, NumberEntity):
+    """Adjustable temperature setpoint for one heating mode."""
 
     _attr_has_entity_name = True
     _attr_native_step = 0.5
+    _attr_native_min_value = 16.0
+    _attr_native_max_value = 25.0
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:thermometer"
 
-    def __init__(self, coordinator, config_entry, temp_type, name, default, min_val, max_val):
-        """Initialize the number entity."""
-        self.coordinator = coordinator
+    def __init__(self, coordinator, config_entry, temp_type: str, name: str, default: float) -> None:
+        super().__init__(coordinator)
         self._temp_type = temp_type
         self._attr_name = name
         self._attr_unique_id = f"{config_entry.entry_id}_{temp_type}_temp"
-        self._attr_native_min_value = min_val
-        self._attr_native_max_value = max_val
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
             "name": config_entry.data.get("name", "Smart Climate Control"),
-            "manufacturer": "Custom",
-            "model": "Smart Climate Controller",
+            "manufacturer": "Smart Climate",
+            "model": "Smart Climate Controller v2",
         }
-        self._attr_icon = "mdi:thermometer" if temp_type != "cooling" else "mdi:snowflake-thermometer"
 
     @property
-    def native_value(self):
-        """Return the current value."""
-        if self._temp_type == "comfort":
-            return self.coordinator.comfort_temp
-        elif self._temp_type == "eco":
-            return self.coordinator.eco_temp
-        elif self._temp_type == "boost":
-            return self.coordinator.boost_temp
-        elif self._temp_type == "cooling":
-            return self.coordinator.cooling_temp
-        return None
+    def native_value(self) -> float | None:
+        """Return the current setpoint from the coordinator."""
+        return getattr(self.coordinator, f"{self._temp_type}_temp", None)
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set the value."""
-        if self._temp_type == "comfort":
-            self.coordinator.comfort_temp = value
-        elif self._temp_type == "eco":
-            self.coordinator.eco_temp = value
-        elif self._temp_type == "boost":
-            self.coordinator.boost_temp = value
-        elif self._temp_type == "cooling":
-            self.coordinator.cooling_temp = value
-        
-        # Save to storage
-        await self.coordinator.store.async_save({
-            "comfort_temp": self.coordinator.comfort_temp,
-            "eco_temp": self.coordinator.eco_temp,
-            "boost_temp": self.coordinator.boost_temp,
-            "cooling_temp": self.coordinator.cooling_temp,
-        })
-        
-        await self.coordinator.async_update()
+        """Update the setpoint and trigger an immediate recalculation."""
+        await self.coordinator.async_set_temperature(self._temp_type, value)

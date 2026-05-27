@@ -1,76 +1,88 @@
+"""Config flow for Smart Climate Control v2 beta."""
 import logging
 from typing import Any, Dict, Optional
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-import homeassistant.helpers.config_validation as cv
 
 from .const import (
     DOMAIN,
     CONF_HEAT_PUMP,
     CONF_ROOM_SENSOR,
-    CONF_OUTSIDE_SENSOR,
-    CONF_AVERAGE_SENSOR,
-    CONF_DOOR_SENSOR,
-    CONF_BED_SENSORS,
-    CONF_PRESENCE_TRACKER,
     CONF_SCHEDULE_ENTITY,
-    CONF_HEAT_PUMP_CONTACT,
     CONF_COMFORT_TEMP,
     CONF_ECO_TEMP,
     CONF_BOOST_TEMP,
     CONF_DEADBAND_BELOW,
     CONF_DEADBAND_ABOVE,
-    CONF_MAX_HOUSE_TEMP,
-    CONF_WEATHER_COMP_FACTOR,
-    CONF_MAX_COMP_TEMP,
-    CONF_MIN_COMP_TEMP,
     DEFAULT_COMFORT_TEMP,
     DEFAULT_ECO_TEMP,
     DEFAULT_BOOST_TEMP,
-    DEFAULT_DEADBAND,
-    DEFAULT_MAX_HOUSE_TEMP,
-    DEFAULT_WEATHER_COMP_FACTOR,
-    DEFAULT_MAX_COMP_TEMP,
-    DEFAULT_MIN_COMP_TEMP,
+    DEFAULT_DEADBAND_BELOW,
+    DEFAULT_DEADBAND_ABOVE,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Reusable selector factories
+# ---------------------------------------------------------------------------
+
+def _temp_selector(min_val: float = 16.0, max_val: float = 25.0):
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=min_val, max=max_val, step=0.5,
+            mode="slider", unit_of_measurement="°C",
+        )
+    )
+
+
+def _deadband_selector():
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=0.1, max=2.0, step=0.1,
+            mode="slider", unit_of_measurement="°C",
+        )
+    )
+
+
+def _schedule_selector():
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(domain="schedule")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Config flow (initial setup wizard)
+# ---------------------------------------------------------------------------
+
 class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Smart Climate Control."""
+    """Two-step setup: (1) pick entities, (2) set temperatures."""
 
     VERSION = 1
 
     def __init__(self):
-        """Initialize the config flow."""
-        self.data = {}
+        self._data: Dict[str, Any] = {}
 
+    # Step 1 — required / optional entities
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle the initial step."""
-        errors = {}
-    
+        """Select the heat pump, room sensor, and optional schedule."""
+        errors: Dict[str, str] = {}
+
         if user_input is not None:
-            # Validate heat pump entity exists
-            if not self.hass.states.get(user_input[CONF_HEAT_PUMP]):
-                errors[CONF_HEAT_PUMP] = "entity_not_found"
-            
-            # Validate room sensor exists
-            if not self.hass.states.get(user_input[CONF_ROOM_SENSOR]):
-                errors[CONF_ROOM_SENSOR] = "entity_not_found"
-            
-            # Validate outside sensor exists (if provided)
-            if user_input.get(CONF_OUTSIDE_SENSOR) and not self.hass.states.get(user_input[CONF_OUTSIDE_SENSOR]):
-                errors[CONF_OUTSIDE_SENSOR] = "entity_not_found"
-            
+            # Validate required entities actually exist in HA right now
+            for field in (CONF_HEAT_PUMP, CONF_ROOM_SENSOR):
+                if not self.hass.states.get(user_input[field]):
+                    errors[field] = "entity_not_found"
+
             if not errors:
-                self.data = user_input
-                return await self.async_step_options()
-    
+                self._data = user_input
+                return await self.async_step_temps()
+
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
@@ -79,173 +91,80 @@ class SmartClimateConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.EntitySelectorConfig(domain="climate")
                 ),
                 vol.Required(CONF_ROOM_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-                ),
-                vol.Optional(CONF_OUTSIDE_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-                ),
-                vol.Optional(CONF_AVERAGE_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-                ),
-                vol.Optional(CONF_DOOR_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor", device_class="door")
-                ),
-                vol.Optional(CONF_HEAT_PUMP_CONTACT): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor")
-                ),
-                vol.Optional(CONF_SCHEDULE_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="schedule")
-                ),
-                vol.Optional(CONF_PRESENCE_TRACKER): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["device_tracker", "person", "zone", "sensor", "input_boolean", "group"]
+                        domain="sensor", device_class="temperature"
                     )
-                ),                
+                ),
+                vol.Optional(CONF_SCHEDULE_ENTITY): _schedule_selector(),
             }),
             errors=errors,
         )
 
-    async def async_step_options(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle the options step."""
+    # Step 2 — temperature setpoints + deadband
+    async def async_step_temps(self, user_input: Optional[Dict[str, Any]] = None):
+        """Configure temperature setpoints and deadband values."""
         if user_input is not None:
-            self.data.update(user_input)
-            return await self.async_step_beds()
-
-        return self.async_show_form(
-            step_id="options",
-            data_schema=vol.Schema({
-                vol.Optional(CONF_COMFORT_TEMP, default=DEFAULT_COMFORT_TEMP): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=16, max=25, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(CONF_ECO_TEMP, default=DEFAULT_ECO_TEMP): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=16, max=25, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(CONF_BOOST_TEMP, default=DEFAULT_BOOST_TEMP): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=16, max=25, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(CONF_DEADBAND_BELOW, default=DEFAULT_DEADBAND): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=0.1, max=2, step=0.1, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(CONF_DEADBAND_ABOVE, default=DEFAULT_DEADBAND): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=0.1, max=2, step=0.1, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(CONF_MAX_HOUSE_TEMP, default=DEFAULT_MAX_HOUSE_TEMP): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=20, max=30, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(CONF_WEATHER_COMP_FACTOR, default=DEFAULT_WEATHER_COMP_FACTOR): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=0, max=1, step=0.1, mode="slider")
-                ),
-            }),
-        )
-
-    async def async_step_beds(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle the bed sensor step."""
-        if user_input is not None:
-            # Extract bed sensor if provided
-            if user_input.get("bed_sensor"):
-                self.data[CONF_BED_SENSORS] = [user_input["bed_sensor"]]
-            
-            # Create the config entry
+            self._data.update(user_input)
             return self.async_create_entry(
-                title=self.data[CONF_NAME],
-                data=self.data,
+                title=self._data[CONF_NAME],
+                data=self._data,
             )
-    
+
         return self.async_show_form(
-            step_id="beds",
+            step_id="temps",
             data_schema=vol.Schema({
-                vol.Optional("bed_sensor"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain=["binary_sensor", "input_boolean", "sensor"]
-                    )
-                ),
+                vol.Optional(CONF_COMFORT_TEMP, default=DEFAULT_COMFORT_TEMP): _temp_selector(),
+                vol.Optional(CONF_ECO_TEMP, default=DEFAULT_ECO_TEMP): _temp_selector(),
+                vol.Optional(CONF_BOOST_TEMP, default=DEFAULT_BOOST_TEMP): _temp_selector(),
+                vol.Optional(CONF_DEADBAND_BELOW, default=DEFAULT_DEADBAND_BELOW): _deadband_selector(),
+                vol.Optional(CONF_DEADBAND_ABOVE, default=DEFAULT_DEADBAND_ABOVE): _deadband_selector(),
             }),
         )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        """Get the options flow for this handler."""
         return SmartClimateOptionsFlow(config_entry)
 
 
+# ---------------------------------------------------------------------------
+# Options flow (gear icon after setup)
+# ---------------------------------------------------------------------------
+
 class SmartClimateOptionsFlow(config_entries.OptionsFlow):
-    """Handle options for Smart Climate Control."""
+    """Adjust temperatures, deadband, and schedule entity after initial setup."""
 
     def __init__(self, config_entry):
-        """Initialize options flow."""
         self.config_entry = config_entry
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None):
-        """Manage the options."""
+        """Show the options form."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        # Pull current values: options first, then initial config, then default
+        def get(key, default):
+            return self.config_entry.options.get(
+                key, self.config_entry.data.get(key, default)
+            )
+
+        # Build schema — schedule entity is optional so handle None default carefully
+        schema: Dict[Any, Any] = {
+            vol.Optional(CONF_COMFORT_TEMP, default=get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)): _temp_selector(),
+            vol.Optional(CONF_ECO_TEMP, default=get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)): _temp_selector(),
+            vol.Optional(CONF_BOOST_TEMP, default=get(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)): _temp_selector(),
+            vol.Optional(CONF_DEADBAND_BELOW, default=get(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND_BELOW)): _deadband_selector(),
+            vol.Optional(CONF_DEADBAND_ABOVE, default=get(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND_ABOVE)): _deadband_selector(),
+        }
+
+        # Only set a default for schedule if one is already configured
+        current_schedule = get(CONF_SCHEDULE_ENTITY, None)
+        if current_schedule:
+            schema[vol.Optional(CONF_SCHEDULE_ENTITY, default=current_schedule)] = _schedule_selector()
+        else:
+            schema[vol.Optional(CONF_SCHEDULE_ENTITY)] = _schedule_selector()
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_COMFORT_TEMP,
-                    default=self.config_entry.options.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=16, max=25, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_ECO_TEMP,
-                    default=self.config_entry.options.get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=16, max=25, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_BOOST_TEMP,
-                    default=self.config_entry.options.get(CONF_BOOST_TEMP, DEFAULT_BOOST_TEMP)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=16, max=25, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_DEADBAND_BELOW,
-                    default=self.config_entry.options.get(CONF_DEADBAND_BELOW, DEFAULT_DEADBAND)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=0.1, max=2, step=0.1, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_DEADBAND_ABOVE,
-                    default=self.config_entry.options.get(CONF_DEADBAND_ABOVE, DEFAULT_DEADBAND)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=0.1, max=2, step=0.1, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_MAX_HOUSE_TEMP,
-                    default=self.config_entry.options.get(CONF_MAX_HOUSE_TEMP, DEFAULT_MAX_HOUSE_TEMP)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=20, max=30, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_WEATHER_COMP_FACTOR,
-                    default=self.config_entry.options.get(CONF_WEATHER_COMP_FACTOR, DEFAULT_WEATHER_COMP_FACTOR)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=0, max=1, step=0.1, mode="slider")
-                ),
-                vol.Optional(
-                    CONF_MAX_COMP_TEMP,
-                    default=self.config_entry.options.get(CONF_MAX_COMP_TEMP, DEFAULT_MAX_COMP_TEMP)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=20, max=30, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_MIN_COMP_TEMP,
-                    default=self.config_entry.options.get(CONF_MIN_COMP_TEMP, DEFAULT_MIN_COMP_TEMP)
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=14, max=20, step=0.5, mode="slider", unit_of_measurement="°C")
-                ),
-                vol.Optional(
-                    CONF_SCHEDULE_ENTITY,
-                    default=self.config_entry.data.get(CONF_SCHEDULE_ENTITY) or self.config_entry.options.get(CONF_SCHEDULE_ENTITY)
-                ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="schedule")
-                ),
-            }),
+            data_schema=vol.Schema(schema),
         )
-
-
-

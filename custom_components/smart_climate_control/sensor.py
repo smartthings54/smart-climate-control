@@ -1,164 +1,152 @@
+"""Sensor platform for Smart Climate Control v2 beta."""
 import logging
 
-from homeassistant.components.sensor import (
-    SensorEntity,
-    SensorStateClass,
-)
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .coordinator import SmartClimateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Smart Climate Control sensors."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    
-    entities = [
+    """Set up Smart Climate sensors."""
+    coordinator: SmartClimateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    async_add_entities([
         SmartClimateStatusSensor(coordinator, config_entry),
         SmartClimateModeSensor(coordinator, config_entry),
         SmartClimateTargetSensor(coordinator, config_entry),
-        # Removed SmartClimateControlledEntitySensor - not providing useful info
-    ]
-    
-    async_add_entities(entities)
+    ])
 
 
-class SmartClimateBaseSensor(SensorEntity):
-    """Base sensor for Smart Climate Control."""
+# ---------------------------------------------------------------------------
+# Base
+# ---------------------------------------------------------------------------
+
+class SmartClimateBaseSensor(CoordinatorEntity, SensorEntity):
+    """Base class: wires up CoordinatorEntity and shared device info."""
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, config_entry, sensor_type, name):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_{sensor_type}"
+    def __init__(
+        self,
+        coordinator: SmartClimateCoordinator,
+        config_entry: ConfigEntry,
+        key: str,
+        name: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{config_entry.entry_id}_{key}"
         self._attr_name = name
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
             "name": config_entry.data.get("name", "Smart Climate Control"),
-            "manufacturer": "Custom",
-            "model": "Smart Climate Controller",
+            "manufacturer": "Smart Climate",
+            "model": "Smart Climate Controller v2",
         }
 
     @property
-    def available(self):
-        """Sensors are always available - we want to show state even when disabled."""
-        return True
+    def _data(self) -> dict:
+        """Shorthand for coordinator.data with empty-dict fallback."""
+        return self.coordinator.data or {}
 
+
+# ---------------------------------------------------------------------------
+# Status sensor  —  human-readable debug line + key attributes
+# ---------------------------------------------------------------------------
 
 class SmartClimateStatusSensor(SmartClimateBaseSensor):
-    """Status sensor showing current smart control logic."""
+    """Shows what the system is currently doing and why."""
+
+    _attr_icon = "mdi:information-outline"
 
     def __init__(self, coordinator, config_entry):
-        """Initialize the status sensor."""
         super().__init__(coordinator, config_entry, "status", "Status")
-        self._attr_icon = "mdi:information-outline"
 
     @property
-    def state(self):
-        """Return the state of the sensor."""
-        if not self.coordinator.smart_control_enabled:
-            return "Smart control disabled"
-        return self.coordinator.debug_text
+    def native_value(self) -> str:
+        return self._data.get("debug_text", "Initialising...")
 
     @property
-    def extra_state_attributes(self):
-        """Return extra attributes including deadband settings."""
-        heat_pump_state = self.coordinator.current_heat_pump_state
+    def extra_state_attributes(self) -> dict:
+        d = self._data
         return {
-            "smart_control_enabled": self.coordinator.smart_control_enabled,
-            "controlled_entity": self.coordinator.heat_pump_entity_id,
-            "heat_pump_mode": heat_pump_state.get("hvac_mode"),
-            "heat_pump_action": heat_pump_state.get("hvac_action"),
-            "heat_pump_temperature": heat_pump_state.get("temperature"),
-            "heat_pump_current_temp": heat_pump_state.get("current_temperature"),
-            # ADD DEADBAND ATTRIBUTES HERE:
-            "deadband_below": self.coordinator.deadband_below,
-            "deadband_above": self.coordinator.deadband_above,
-            "max_house_temp": self.coordinator.max_house_temp,
-            "weather_comp_factor": self.coordinator.weather_comp_factor,
-            "max_comp_temp": self.coordinator.max_comp_temp,
-            "min_comp_temp": self.coordinator.min_comp_temp,
+            "smart_control_enabled": d.get("smart_control_enabled"),
+            "action":                d.get("action"),
+            "room_temp":             d.get("room_temp"),
+            "target_temp":           d.get("target_temp"),
+            "deadband_below":        d.get("deadband_below"),
+            "deadband_above":        d.get("deadband_above"),
+            "controlled_entity":     self.coordinator.heat_pump_entity_id,
         }
 
+
+# ---------------------------------------------------------------------------
+# Mode sensor  —  what mode is active right now
+# ---------------------------------------------------------------------------
 
 class SmartClimateModeSensor(SmartClimateBaseSensor):
-    """Mode sensor showing what mode smart control is using."""
-    
+    """Shows the active mode: Comfort, Eco, Boost, or a Force override."""
+
+    _attr_icon = "mdi:home-thermometer"
+
     def __init__(self, coordinator, config_entry):
-        """Initialize the mode sensor."""
         super().__init__(coordinator, config_entry, "mode", "Mode")
-        self._attr_icon = "mdi:home-thermometer"
-    
-    @property
-    def state(self):
-        """Return the current smart control mode."""
-        if not self.coordinator.smart_control_enabled:
-            return "Disabled"
-            
-        if self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
-            return "Force Eco" if self.coordinator.force_eco_mode else "Sleep Eco"
-        elif self.coordinator.override_mode:
-            return "Force Comfort"
-        else:
-            mode = self.coordinator.schedule_mode
-            return mode.capitalize() if mode else "Unknown"
 
     @property
-    def extra_state_attributes(self):
-        """Return mode details."""
+    def native_value(self) -> str:
+        d = self._data
+        if not d.get("smart_control_enabled"):
+            return "Disabled"
+        force = d.get("force_mode")
+        if force:
+            return f"Force {force.title()}"
+        schedule = d.get("schedule_mode", "comfort")
+        return schedule.title()
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d = self._data
         return {
-            "smart_control_enabled": self.coordinator.smart_control_enabled,
-            "force_comfort": self.coordinator.override_mode,
-            "force_eco": self.coordinator.force_eco_mode,
-            "sleep_active": self.coordinator.sleep_mode_active,
-            "schedule_mode": self.coordinator.schedule_mode,
+            "force_mode":    d.get("force_mode"),
+            "schedule_mode": d.get("schedule_mode"),
+            "enabled":       d.get("smart_control_enabled"),
         }
+
+
+# ---------------------------------------------------------------------------
+# Target sensor  —  the temperature the system is working towards
+# ---------------------------------------------------------------------------
 
 class SmartClimateTargetSensor(SmartClimateBaseSensor):
-    """Target temperature sensor showing what smart control is targeting."""
+    """Shows the current target temperature (respects force modes + schedule)."""
+
+    _attr_icon = "mdi:thermometer-plus"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, config_entry):
-        """Initialize the target sensor."""
         super().__init__(coordinator, config_entry, "target_temp", "Target")
-        self._attr_icon = "mdi:thermometer-plus"
-        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
-    def state(self):
-        """Return the target temperature that smart control would use."""
-        # Always return what the target would be, even if disabled
-        base_temp = self.coordinator._determine_base_temperature()
-        return base_temp
+    def native_value(self) -> float | None:
+        return self._data.get("target_temp")
 
     @property
-    def extra_state_attributes(self):
-        """Return temperature details."""
+    def extra_state_attributes(self) -> dict:
+        d = self._data
         return {
-            "smart_control_enabled": self.coordinator.smart_control_enabled,
-            "comfort_temp": self.coordinator.comfort_temp,
-            "eco_temp": self.coordinator.eco_temp,
-            "boost_temp": self.coordinator.boost_temp,
-            "active_mode": self._get_active_mode(),
+            "comfort_temp": d.get("comfort_temp"),
+            "eco_temp":     d.get("eco_temp"),
+            "boost_temp":   d.get("boost_temp"),
+            "active_mode":  d.get("active_mode"),
         }
-    
-    def _get_active_mode(self) -> str:
-        """Get the active temperature mode."""
-        if not self.coordinator.smart_control_enabled:
-            return "disabled"
-        elif self.coordinator.override_mode:
-            return "force_comfort"
-        elif self.coordinator.force_eco_mode or self.coordinator.sleep_mode_active:
-            return "force_eco" if self.coordinator.force_eco_mode else "sleep_eco"
-        else:
-            return self.coordinator.schedule_mode
-

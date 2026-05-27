@@ -4,10 +4,10 @@
   "codeowners": ["@smartthings54"],
   "config_flow": true,
   "dependencies": ["climate", "sensor"],
-  "documentation": "https://github.com/smartthings54/smart-climate-control",
+  "documentation": "https://github.com/smartthings54/smart-climate-control/tree/v2-beta",
   "homeassistant": "2024.1.0",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/smartthings54/smart-climate-control/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "2.0.0b1"
 }
